@@ -1,0 +1,53 @@
+# 二进制文件
+api/ops-api
+api/newbee-ops-api
+rpc/ops-rpc
+rpc/newbee-ops-rpc
+rpc/io-rpc
+
+# Go 缓存目录
+.gocache/
+**/.gocache/
+
+# Go 编译文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试二进制文件
+*.test
+
+# 输出的可执行文件
+*.out
+
+# 依赖目录
+vendor/
+
+# Go 工作区文件
+go.work
+
+# IDE 配置文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
