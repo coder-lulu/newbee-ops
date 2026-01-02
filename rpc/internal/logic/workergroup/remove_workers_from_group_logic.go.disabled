@@ -1,0 +1,73 @@
+package workergroup
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxygroupmember"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type RemoveWorkersFromGroupLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewRemoveWorkersFromGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *RemoveWorkersFromGroupLogic {
+	return &RemoveWorkersFromGroupLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+// RemoveWorkersFromGroup 从分组移除Worker
+func (l *RemoveWorkersFromGroupLogic) RemoveWorkersFromGroup(in *ops.ProxyGroupMemberInfo) (*ops.BaseResp, error) {
+	// 1. 验证分组是否存在
+	group, err := l.svcCtx.DB.ProxyGroup.Get(l.ctx, in.GetWorkerGroupId())
+	if err != nil {
+		return nil, fmt.Errorf("worker group not found: %w", err)
+	}
+
+	// 2. 批量删除成员
+	removedCount := 0
+	for _, workerID := range in.GetWorkerIds() {
+		deleted, err := l.svcCtx.DB.ProxyGroupMember.Delete().
+			Where(
+				proxygroupmember.WorkerIDEQ(workerID),
+				proxygroupmember.ProxyGroupIDEQ(group.ID),
+			).
+			Exec(l.ctx)
+
+		if err != nil {
+			logx.Errorw("Failed to remove worker from group",
+				logx.Field("worker_id", workerID),
+				logx.Field("group_id", group.ID),
+				logx.Field("error", err))
+			continue
+		}
+
+		removedCount += deleted
+	}
+
+	// 3. 更新分组统计信息
+	memberCount, _ := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(proxygroupmember.ProxyGroupIDEQ(group.ID)).
+		Count(l.ctx)
+
+	_, err = l.svcCtx.DB.ProxyGroup.UpdateOneID(group.ID).
+		SetTotalMembers(memberCount).
+		Save(l.ctx)
+
+	if err != nil {
+		logx.Errorw("Failed to update group stats", logx.Field("error", err))
+	}
+
+	return &ops.BaseResp{
+		Msg: fmt.Sprintf("Successfully removed %d workers from group", removedCount),
+	}, nil
+}

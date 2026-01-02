@@ -1,0 +1,88 @@
+package workergroup
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxygroupmember"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type UpdateWorkerGroupMemberWeightLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewUpdateWorkerGroupMemberWeightLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UpdateWorkerGroupMemberWeightLogic {
+	return &UpdateWorkerGroupMemberWeightLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+// UpdateWorkerGroupMemberWeight 更新分组成员权重
+func (l *UpdateWorkerGroupMemberWeightLogic) UpdateWorkerGroupMemberWeight(in *ops.ProxyGroupMemberInfo) (*ops.BaseResp, error) {
+	// 1. 查询成员记录
+	member, err := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(
+			proxygroupmember.WorkerIDEQ(in.GetWorkerId()),
+			proxygroupmember.ProxyGroupIDEQ(in.GetWorkerGroupId()),
+		).
+		First(l.ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("worker group member not found: %w", err)
+	}
+
+	// 2. 更新权重和优先级
+	updateBuilder := l.svcCtx.DB.ProxyGroupMember.UpdateOne(member)
+
+	if in.Weight != nil {
+		weight := int(*in.Weight)
+		if weight < 1 || weight > 1000 {
+			return nil, fmt.Errorf("weight must be between 1 and 1000")
+		}
+		updateBuilder = updateBuilder.SetWeight(weight)
+	}
+
+	if in.Priority != nil {
+		priority := int(*in.Priority)
+		if priority < -100 || priority > 100 {
+			return nil, fmt.Errorf("priority must be between -100 and 100")
+		}
+		updateBuilder = updateBuilder.SetPriority(priority)
+	}
+
+	if in.IsBackup != nil {
+		updateBuilder = updateBuilder.SetIsBackup(*in.IsBackup)
+	}
+
+	_, err = updateBuilder.Save(l.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update worker group member: %w", err)
+	}
+
+	// 3. 重新计算分组总权重
+	totalWeight := 0
+	members, err := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(proxygroupmember.ProxyGroupIDEQ(in.GetWorkerGroupId())).
+		All(l.ctx)
+
+	if err == nil {
+		for _, m := range members {
+			totalWeight += m.Weight
+		}
+
+		// 更新分组统计
+		_, _ = l.svcCtx.DB.ProxyGroup.UpdateOneID(in.GetWorkerGroupId()).
+			SetTotalWeight(totalWeight).
+			Save(l.ctx)
+	}
+
+	return &ops.BaseResp{Msg: "Worker group member updated successfully"}, nil
+}

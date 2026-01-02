@@ -1,0 +1,133 @@
+package script_execution
+
+import (
+	"context"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/predicate"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/scriptexecution"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetScriptExecutionListLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetScriptExecutionListLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetScriptExecutionListLogic {
+	return &GetScriptExecutionListLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetScriptExecutionListLogic) GetScriptExecutionList(in *ops.ScriptExecutionListReq) (*ops.ScriptExecutionListResp, error) {
+	var predicates []predicate.ScriptExecution
+	if in.CreatedAt != nil {
+		predicates = append(predicates, scriptexecution.CreatedAtGTE(time.UnixMilli(*in.CreatedAt)))
+	}
+	if in.UpdatedAt != nil {
+		predicates = append(predicates, scriptexecution.UpdatedAtGTE(time.UnixMilli(*in.UpdatedAt)))
+	}
+	if in.Status != nil {
+		predicates = append(predicates, scriptexecution.StatusEQ(uint8(*in.Status)))
+	}
+	if in.ScriptId != nil {
+		predicates = append(predicates, scriptexecution.ScriptIDEQ(*in.ScriptId))
+	}
+	if in.ExecutionId != nil {
+		predicates = append(predicates, scriptexecution.ExecutionIDContains(*in.ExecutionId))
+	}
+	if in.ExecutorUserId != nil {
+		predicates = append(predicates, scriptexecution.ExecutorUserIDEQ(*in.ExecutorUserId))
+	}
+	if in.TriggerType != nil {
+		predicates = append(predicates, scriptexecution.TriggerTypeContains(*in.TriggerType))
+	}
+	if in.TargetCiIds != nil {
+		predicates = append(predicates, scriptexecution.TargetCiIdsEQ(*in.TargetCiIds))
+	}
+	if in.TargetCount != nil {
+		predicates = append(predicates, scriptexecution.TargetCountEQ(*in.TargetCount))
+	}
+	if in.Parameters != nil {
+		predicates = append(predicates, scriptexecution.ParametersContains(*in.Parameters))
+	}
+	if in.RawParameters != nil {
+		predicates = append(predicates, scriptexecution.RawParametersContains(*in.RawParameters))
+	}
+	if in.ExecutionStatus != nil {
+		predicates = append(predicates, scriptexecution.ExecutionStatusContains(*in.ExecutionStatus))
+	}
+	if in.StartedAt != nil {
+		predicates = append(predicates, scriptexecution.StartedAtGTE(time.UnixMilli(*in.StartedAt)))
+	}
+	if in.CompletedAt != nil {
+		predicates = append(predicates, scriptexecution.CompletedAtGTE(time.UnixMilli(*in.CompletedAt)))
+	}
+	if in.DurationMs != nil {
+		predicates = append(predicates, scriptexecution.DurationMsEQ(*in.DurationMs))
+	}
+	if in.SuccessCount != nil {
+		predicates = append(predicates, scriptexecution.SuccessCountEQ(*in.SuccessCount))
+	}
+	if in.FailureCount != nil {
+		predicates = append(predicates, scriptexecution.FailureCountEQ(*in.FailureCount))
+	}
+	if in.TimeoutCount != nil {
+		predicates = append(predicates, scriptexecution.TimeoutCountEQ(*in.TimeoutCount))
+	}
+	if in.TaskId != nil {
+		predicates = append(predicates, scriptexecution.TaskIDContains(*in.TaskId))
+	}
+	if in.ErrorMessage != nil {
+		predicates = append(predicates, scriptexecution.ErrorMessageContains(*in.ErrorMessage))
+	}
+	if in.ExecutionLog != nil {
+		predicates = append(predicates, scriptexecution.ExecutionLogContains(*in.ExecutionLog))
+	}
+	result, err := l.svcCtx.DB.ScriptExecution.Query().Where(predicates...).Page(l.ctx, in.Page, in.PageSize)
+
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	resp := &ops.ScriptExecutionListResp{}
+	resp.Total = result.PageDetails.Total
+
+	for _, v := range result.List {
+		resp.Data = append(resp.Data, &ops.ScriptExecutionInfo{
+			Id:              &v.ID,
+			CreatedAt:       pointy.GetPointer(v.CreatedAt.UnixMilli()),
+			UpdatedAt:       pointy.GetPointer(v.UpdatedAt.UnixMilli()),
+			Status:          pointy.GetPointer(uint32(v.Status)),
+			ScriptId:        &v.ScriptID,
+			ExecutionId:     &v.ExecutionID,
+			ExecutorUserId:  &v.ExecutorUserID,
+			TriggerType:     &v.TriggerType,
+			TargetCiIds:     &v.TargetCiIds,
+			TargetCount:     &v.TargetCount,
+			Parameters:      &v.Parameters,
+			RawParameters:   &v.RawParameters,
+			ExecutionStatus: &v.ExecutionStatus,
+			StartedAt:       pointy.GetUnixMilliPointer(v.StartedAt.UnixMilli()),
+			CompletedAt:     pointy.GetUnixMilliPointer(v.CompletedAt.UnixMilli()),
+			DurationMs:      &v.DurationMs,
+			SuccessCount:    &v.SuccessCount,
+			FailureCount:    &v.FailureCount,
+			TimeoutCount:    &v.TimeoutCount,
+			TaskId:          &v.TaskID,
+			ErrorMessage:    &v.ErrorMessage,
+			ExecutionLog:    &v.ExecutionLog,
+		})
+	}
+
+	return resp, nil
+}

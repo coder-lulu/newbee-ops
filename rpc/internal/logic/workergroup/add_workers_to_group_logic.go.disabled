@@ -1,0 +1,97 @@
+package workergroup
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxygroupmember"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type AddWorkersToGroupLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewAddWorkersToGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *AddWorkersToGroupLogic {
+	return &AddWorkersToGroupLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+// AddWorkersToGroup 添加Worker到分组
+func (l *AddWorkersToGroupLogic) AddWorkersToGroup(in *ops.ProxyGroupMemberInfo) (*ops.BaseResp, error) {
+	// 1. 验证分组是否存在
+	group, err := l.svcCtx.DB.ProxyGroup.Get(l.ctx, in.GetWorkerGroupId())
+	if err != nil {
+		return nil, fmt.Errorf("worker group not found: %w", err)
+	}
+
+	// 2. 批量添加成员
+	now := time.Now()
+	weight := int(in.GetWeight())
+	if weight == 0 {
+		weight = 100 // 默认权重
+	}
+	priority := int(in.GetPriority())
+
+	for _, workerID := range in.GetWorkerIds() {
+		// 检查Worker是否存在
+		_, err := l.svcCtx.DB.Worker.Get(l.ctx, workerID)
+		if err != nil {
+			logx.Errorw("Worker not found", logx.Field("worker_id", workerID), logx.Field("error", err))
+			continue
+		}
+
+		// 检查是否已经是成员
+		exists, _ := l.svcCtx.DB.ProxyGroupMember.Query().
+			Where(
+				proxygroupmember.WorkerIDEQ(workerID),
+				proxygroupmember.ProxyGroupIDEQ(group.ID),
+			).
+			Exist(l.ctx)
+
+		if exists {
+			continue // 已经是成员，跳过
+		}
+
+		// 添加成员
+		_, err = l.svcCtx.DB.ProxyGroupMember.Create().
+			SetWorkerID(workerID).
+			SetWorkerGroupID(group.ID).
+			SetWeight(weight).
+			SetPriority(priority).
+			SetJoinedAt(now).
+			SetStatus(1).
+			Save(l.ctx)
+
+		if err != nil {
+			logx.Errorw("Failed to add worker to group",
+				logx.Field("worker_id", workerID),
+				logx.Field("group_id", group.ID),
+				logx.Field("error", err))
+		}
+	}
+
+	// 3. 更新分组统计信息
+	memberCount, _ := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(proxygroupmember.ProxyGroupIDEQ(group.ID)).
+		Count(l.ctx)
+
+	_, err = l.svcCtx.DB.ProxyGroup.UpdateOneID(group.ID).
+		SetTotalMembers(memberCount).
+		Save(l.ctx)
+
+	if err != nil {
+		logx.Errorw("Failed to update group stats", logx.Field("error", err))
+	}
+
+	return &ops.BaseResp{Msg: "Workers added successfully"}, nil
+}

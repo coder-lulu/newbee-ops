@@ -1,0 +1,271 @@
+syntax = "v1"
+
+info (
+	title:   "Proxy管理API"
+	desc:    "OPS-Center Proxy管理接口"
+	version: "v1.0"
+)
+
+type (
+	// Proxy基础信息（用于列表展示）
+	ProxyItem {
+		Id                  uint64  `json:"id"`
+		ProxyID             string  `json:"proxyId"`
+		Name                string  `json:"name"`
+		IP                  string  `json:"ip"`
+		Port                int     `json:"port"`
+		Region              string  `json:"region,optional"`
+		Zone                string  `json:"zone,optional"`
+		ProxyStatus         string  `json:"proxyStatus"` // online, degraded, offline
+		LastHeartbeat       int64   `json:"lastHeartbeat"`
+		CPUUsage            float64 `json:"cpuUsage"`
+		MemoryUsage         float64 `json:"memoryUsage"`
+		ActiveSessions      int     `json:"activeSessions"`
+		MaxSessions         int     `json:"maxSessions"`
+		TotalRequests       uint64  `json:"totalRequests"`
+		SuccessCount        uint64  `json:"successCount"`
+		Weight              int     `json:"weight"`
+		Priority            int     `json:"priority"`
+		HealthCheckFailures int     `json:"healthCheckFailures"`
+	}
+	// Proxy详细信息
+	ProxyDetail {
+		Id                  uint64   `json:"id"`
+		CreatedAt           int64    `json:"createdAt"`
+		UpdatedAt           int64    `json:"updatedAt"`
+		Status              uint32   `json:"status"` // 启用状态：1=启用 2=禁用
+		WorkerID            string   `json:"workerId"`
+		Name                string   `json:"name"`
+		IP                  string   `json:"ip"`
+		Port                int      `json:"port"`
+		Version             string   `json:"version,optional"`
+		Region              string   `json:"region,optional"`
+		Zone                string   `json:"zone,optional"`
+		Capabilities        []string `json:"capabilities,optional"`
+		Tags                []string `json:"tags,optional"`
+		Endpoints           string   `json:"endpoints,optional"` // JSON map
+		WorkerStatus        string   `json:"workerStatus"`
+		LastHeartbeat       int64    `json:"lastHeartbeat"`
+		RegisterTime        int64    `json:"registerTime"`
+		Weight              int      `json:"weight"`
+		Priority            int      `json:"priority"`
+		CPUUsage            float64  `json:"cpuUsage"`
+		MemoryUsage         float64  `json:"memoryUsage"`
+		DiskUsage           float64  `json:"diskUsage"`
+		NetworkIn           uint64   `json:"networkIn"`
+		NetworkOut          uint64   `json:"networkOut"`
+		ActiveSessions      int      `json:"activeSessions"`
+		TotalRequests       uint64   `json:"totalRequests"`
+		SuccessCount        uint64   `json:"successCount"`
+		FailureCount        uint64   `json:"failureCount"`
+		MaxSessions         int      `json:"maxSessions"`
+		HealthCheckFailures int      `json:"healthCheckFailures"`
+		HealthCheckURL      string   `json:"healthCheckUrl,optional"`
+		LastHealthCheck     int64    `json:"lastHealthCheck,optional"`
+		LocalIP             string   `json:"localIp,optional"`
+		PublicIP            string   `json:"publicIp,optional"`
+		NetworkSegments     []string `json:"networkSegments,optional"`
+		Metadata            string   `json:"metadata,optional"` // JSON map
+	}
+	// Proxy详情响应
+	ProxyDetailResp {
+		Code int         `json:"code"`
+		Msg  string      `json:"msg"`
+		Data ProxyDetail `json:"data"`
+	}
+	// Proxy注册请求（无需JWT，PSK认证）
+	ProxyRegisterReq {
+		ProxyID         string            `json:"proxy_id"`
+		Name            string            `json:"name"`
+		IP              string            `json:"ip"`
+		Port            int               `json:"port"`
+		Version         string            `json:"version,optional"`
+		Region          string            `json:"region,optional"`
+		Zone            string            `json:"zone,optional"`
+		Capabilities    []string          `json:"capabilities,optional"`
+		Tags            []string          `json:"tags,optional"`
+		Endpoints       map[string]string `json:"endpoints,optional"`
+		HealthCheckURL  string            `json:"health_check_url,optional"`
+		MaxSessions     int               `json:"max_sessions,default=100"`
+		LocalIP         string            `json:"local_ip,optional"`
+		PublicIP        string            `json:"public_ip,optional"`
+		NetworkSegments []string          `json:"network_segments,optional"`
+		Metadata        map[string]string `json:"metadata,optional"`
+		PSK             string            `json:"psk"` // Pre-Shared Key
+	}
+	// Proxy心跳请求（无需JWT，PSK认证）
+	ProxyHeartbeatReq {
+		ProxyID        string  `json:"proxy_id"`
+		ProxyStatus    string  `json:"proxy_status,optional,default=online"` // online, degraded
+		CPUUsage       float64 `json:"cpu_usage,optional"`
+		MemoryUsage    float64 `json:"memory_usage,optional"`
+		DiskUsage      float64 `json:"disk_usage,optional"`
+		NetworkIn      uint64  `json:"network_in,optional"`
+		NetworkOut     uint64  `json:"network_out,optional"`
+		ActiveSessions int     `json:"active_sessions,optional"`
+		TotalRequests  uint64  `json:"total_requests,optional"`
+		SuccessCount   uint64  `json:"success_count,optional"`
+		FailureCount   uint64  `json:"failure_count,optional"`
+		PSK            string  `json:"psk"` // Pre-Shared Key
+	}
+	// Proxy选择请求（需要JWT）
+	ProxyPickReq {
+		Strategy             string   `json:"strategy,optional,default=least_connections"` // 选择策略
+		RequiredCapabilities []string `json:"required_capabilities,optional"` // 必须的能力
+		PreferredRegion      string   `json:"preferred_region,optional"` // 优先区域
+		PreferredZone        string   `json:"preferred_zone,optional"` // 优先可用区
+		RequiredTags         []string `json:"required_tags,optional"` // 必须的标签
+		MinWeight            int      `json:"min_weight,optional"` // 最小权重
+		SessionID            string   `json:"session_id,optional"` // 会话ID（一致性哈希）
+		ExcludeProxyIDs      []string `json:"exclude_proxy_ids,optional"` // 排除列表
+	}
+	// Proxy选择数据
+	ProxyPickData {
+		ProxyID   string            `json:"proxy_id"`
+		Name      string            `json:"name"`
+		IP        string            `json:"ip"`
+		Port      int               `json:"port"`
+		Endpoints map[string]string `json:"endpoints,optional"`
+	}
+	// Proxy选择响应
+	ProxyPickResp {
+		Code int           `json:"code"`
+		Msg  string        `json:"msg"`
+		Data ProxyPickData `json:"data"`
+	}
+	// Proxy列表请求（需要JWT）
+	ProxyListReq {
+		Page         uint64 `form:"page,default=1"`
+		PageSize     uint64 `form:"pageSize,default=10"`
+		Status       uint32 `form:"status,optional"` // 启用状态: 1=启用 2=禁用
+		ProxyStatus  string `form:"proxyStatus,optional"` // 运行状态: online, degraded, offline
+		Region       string `form:"region,optional"`
+		Zone         string `form:"zone,optional"`
+		Name         string `form:"name,optional"`
+		Tags         string `form:"tags,optional"` // 逗号分隔
+	}
+	// Proxy列表数据（内层）
+	ProxyListInfo {
+		Total uint64      `json:"total"`
+		Data  []ProxyItem `json:"data"`
+	}
+	// Proxy列表响应（外层，符合标准格式）
+	ProxyListResp {
+		Code int            `json:"code"`
+		Msg  string         `json:"msg"`
+		Data ProxyListInfo `json:"data"`
+	}
+	// 更新Proxy权重请求（需要JWT）
+	UpdateProxyWeightReq {
+		Id     uint64 `json:"id"`
+		Weight int    `json:"weight" validate:"min=1,max=1000"` // 1-1000
+	}
+	// Proxy指标查询请求（需要JWT）
+	ProxyMetricsReq {
+		ProxyID   string `form:"proxy_id"`
+		StartTime int64  `form:"start_time,optional"` // Unix时间戳（秒）
+		EndTime   int64  `form:"end_time,optional"` // Unix时间戳（秒）
+		Limit     int    `form:"limit,optional,default=100"` // 限制返回数量
+	}
+	// Proxy指标项
+	ProxyMetricsItem {
+		ProxyID         string  `json:"proxy_id"`
+		Timestamp       int64   `json:"timestamp"`
+		CPUUsage        float64 `json:"cpu_usage"`
+		MemoryUsage     float64 `json:"memory_usage"`
+		DiskUsage       float64 `json:"disk_usage"`
+		NetworkInDelta  uint64  `json:"network_in_delta"`
+		NetworkOutDelta uint64  `json:"network_out_delta"`
+		ActiveSessions  int     `json:"active_sessions"`
+		RequestDelta    uint64  `json:"request_delta"`
+		SuccessDelta    uint64  `json:"success_delta"`
+		FailureDelta    uint64  `json:"failure_delta"`
+		AvgLatencyMs    float64 `json:"avg_latency_ms"`
+		ProxyStatus     string  `json:"proxy_status"`
+	}
+	// Proxy指标响应
+	ProxyMetricsResp {
+		Code int                 `json:"code"`
+		Msg  string              `json:"msg"`
+		Data []ProxyMetricsItem `json:"data"`
+	}
+	// Proxy指标统计请求（需要JWT）
+	ProxyMetricsStatsReq {
+		ProxyID   string `form:"proxy_id"`
+		StartTime int64  `form:"start_time,optional"`
+		EndTime   int64  `form:"end_time,optional"`
+	}
+	// Proxy指标统计数据
+	ProxyMetricsStatsData {
+		ProxyID       string  `json:"proxy_id"`
+		StartTime     int64   `json:"start_time"`
+		EndTime       int64   `json:"end_time"`
+		AvgCPU        float64 `json:"avg_cpu"`
+		MaxCPU        float64 `json:"max_cpu"`
+		AvgMemory     float64 `json:"avg_memory"`
+		MaxMemory     float64 `json:"max_memory"`
+		AvgSessions   float64 `json:"avg_sessions"`
+		MaxSessions   int     `json:"max_sessions"`
+		TotalRequests uint64  `json:"total_requests"`
+		TotalSuccess  uint64  `json:"total_success"`
+		TotalFailure  uint64  `json:"total_failure"`
+		SuccessRate   float64 `json:"success_rate"`
+		AvgLatency    float64 `json:"avg_latency"`
+		DataPoints    int     `json:"data_points"`
+	}
+	// Proxy指标统计响应
+	ProxyMetricsStatsResp {
+		Code int                   `json:"code"`
+		Msg  string                `json:"msg"`
+		Data ProxyMetricsStatsData `json:"data"`
+	})
+
+@server (
+	group: proxy
+)
+service ops-api {
+	@doc "Proxy注册（PSK认证，无需JWT）"
+	@handler proxyRegister
+	post /proxy/register (ProxyRegisterReq) returns (BaseResp)
+
+	@doc "Proxy心跳（PSK认证，无需JWT）"
+	@handler proxyHeartbeat
+	post /proxy/heartbeat (ProxyHeartbeatReq) returns (BaseResp)
+
+	@doc "Proxy选择（需要JWT）"
+	@handler proxyPick
+	post /proxy/pick (ProxyPickReq) returns (ProxyPickResp)
+
+	@doc "获取Proxy列表（需要JWT）"
+	@handler getProxyList
+	get /proxy/list (ProxyListReq) returns (ProxyListResp)
+
+	@doc "获取Proxy详情（需要JWT）"
+	@handler getProxyById
+	get /proxy/:id (IDReq) returns (ProxyDetailResp)
+
+	@doc "更新Proxy权重（需要JWT）"
+	@handler updateProxyWeight
+	post /proxy/weight (UpdateProxyWeightReq) returns (BaseResp)
+
+	@doc "手动上线Proxy（需要JWT）"
+	@handler activateProxy
+	post /proxy/:id/activate (IDReq) returns (BaseResp)
+
+	@doc "手动下线Proxy（需要JWT）"
+	@handler deactivateProxy
+	post /proxy/:id/deactivate (IDReq) returns (BaseResp)
+
+	@doc "删除Proxy（需要JWT）"
+	@handler deleteProxy
+	post /proxy/delete (IDsReq) returns (BaseResp)
+
+	@doc "查询Proxy指标（需要JWT）"
+	@handler getProxyMetrics
+	get /proxy/metrics (ProxyMetricsReq) returns (ProxyMetricsResp)
+
+	@doc "查询Proxy指标统计（需要JWT）"
+	@handler getProxyMetricsStats
+	get /proxy/metrics/stats (ProxyMetricsStatsReq) returns (ProxyMetricsStatsResp)
+}
+

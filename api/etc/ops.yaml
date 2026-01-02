@@ -1,0 +1,103 @@
+Name: ops-center
+Host: 0.0.0.0
+Port: 9601
+Timeout: 60000
+
+Log:
+  ServiceName: ops-center
+  Mode: console
+  Level: info
+
+Auth:
+  AccessSecret: "wgjh21g3jkb324mdasdaedhaksjhkl2323"
+  AccessExpire: 3600
+
+# I18n Configuration
+I18nConf:
+  Dir: # set the path of locale if you need to load files
+
+Middleware:
+  auth:
+    enabled: true
+    accessSecret: "wgjh21g3jkb324mdasdaedhaksjhkl2323"
+    accessExpire: 3600
+    skipPaths:
+      - "/ops/proxy/register"
+      - "/ops/proxy/heartbeat"
+      - "/proxy/register"
+      - "/proxy/heartbeat"
+      - "/metrics"
+  audit:
+    enabled: true
+    realIpHeader: X-Forwarded-For # 参考 docs/COMMON_AUDIT_MIDDLEWARE_GUIDE.md
+    captureResponseBody: true
+    skipPaths:
+      - "/ops/proxy/register"
+      - "/ops/proxy/heartbeat"
+      - "/proxy/register"
+      - "/proxy/heartbeat"
+      - "/metrics"
+  tenantCheck:
+    enabled: true
+    skipPaths:
+      - "/ops/proxy/register"
+      - "/ops/proxy/heartbeat"
+      - "/proxy/register"
+      - "/proxy/heartbeat"
+  dataPerm:
+    enabled: true
+    casbinEnabled: true  # ✅ 启用基于Casbin的统一数据权限
+    skipPaths:
+      - "/ops/proxy/register"
+      - "/ops/proxy/heartbeat"
+      - "/proxy/register"
+      - "/proxy/heartbeat"
+  permission:
+    enabled: true
+    skipPaths:
+      - "/ops/proxy/register"
+      - "/ops/proxy/heartbeat"
+      - "/proxy/register"
+      - "/proxy/heartbeat"
+
+RedisConf:
+  Host: 192.168.26.130:6380
+  Pass: ""
+  Db: 0
+
+DatabaseConf:
+  Type: mysql
+  Host: 192.168.26.130
+  Port: 3306
+  DBName: newbee
+  Username: root
+  Password: "123456"
+  MaxOpenConn: 100
+  MaxIdleConn: 10
+  MaxLifetime: 3600
+  MaxIdleTime: 1800
+  SSLMode: disable
+  CacheTime: 10
+
+CROSConf:
+  Address: '*'
+
+CoreRpc:
+  Endpoints:
+    - 127.0.0.1:9100
+  Timeout: 30000
+
+CasbinConf:
+  ModelText: ""
+
+Ops:
+  DefaultProxyEndpoints:
+    - "http://127.0.0.1:8889"
+  SessionTokenTTL: 1800
+  Registration:
+    PSK: "dev-psk"
+
+OpsRpc:
+  Endpoints:
+    - 127.0.0.1:9600
+  Timeout: 30000

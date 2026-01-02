@@ -1,0 +1,85 @@
+package script_execution
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/services/executor"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type ExecuteScriptLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewExecuteScriptLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ExecuteScriptLogic {
+	return &ExecuteScriptLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+// Phase 3: Script execution methods
+func (l *ExecuteScriptLogic) ExecuteScript(in *ops.ExecuteScriptReq) (*ops.ExecuteScriptResp, error) {
+	// 1. 验证必填参数
+	if in.ScriptId == nil {
+		return nil, fmt.Errorf("script_id is required")
+	}
+	if len(in.TargetCiIds) == 0 {
+		return nil, fmt.Errorf("target_ci_ids is required")
+	}
+
+	// 2. 解析参数（如果提供）
+	var parameters map[string]interface{}
+	if in.Parameters != nil && *in.Parameters != "" {
+		if err := json.Unmarshal([]byte(*in.Parameters), &parameters); err != nil {
+			return nil, fmt.Errorf("invalid parameters JSON: %w", err)
+		}
+	}
+
+	// 3. 构建执行请求
+	execReq := &executor.ExecuteScriptRequest{
+		ScriptID: *in.ScriptId,
+		ExecutorUserID: func() uint64 {
+			if in.ExecutorUserId != nil {
+				return *in.ExecutorUserId
+			}
+			return 0
+		}(),
+		TriggerType: func() string {
+			if in.TriggerType != nil {
+				return *in.TriggerType
+			}
+			return "manual"
+		}(),
+		TargetCIIDs: in.TargetCiIds,
+		Parameters:  parameters,
+	}
+
+	// 4. 调用执行器
+	result, err := l.svcCtx.ScriptExecutor.Execute(l.ctx, execReq)
+	if err != nil {
+		l.Logger.Errorw("Failed to execute script",
+			logx.Field("script_id", *in.ScriptId),
+			logx.Field("error", err.Error()))
+		return nil, err
+	}
+
+	// 5. 返回结果
+	l.Logger.Infow("Script execution started",
+		logx.Field("execution_id", result.ExecutionID),
+		logx.Field("script_id", *in.ScriptId),
+		logx.Field("targets", len(in.TargetCiIds)))
+
+	return &ops.ExecuteScriptResp{
+		ExecutionId: &result.ExecutionID,
+		Status:      &result.Status,
+		Message:     &result.Message,
+	}, nil
+}

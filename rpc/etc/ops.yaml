@@ -1,0 +1,35 @@
+Name: ops-rpc
+ListenOn: 0.0.0.0:9600
+Timeout: 30000
+
+# gRPC服务器配置
+ServerOptions:
+  # 启用拦截器
+  Interceptors: true
+
+# Core服务RPC连接配置
+CoreRpc:
+  Endpoints:
+    - 127.0.0.1:9100
+  Timeout: 30000  # 30秒超时，单位：毫秒
+
+Log:
+  ServiceName: ops-rpc
+  Mode: console
+  Level: info
+
+DatabaseConf:
+  Type: mysql
+  Host: 192.168.26.130
+  Port: 3306
+  DBName: newbee
+  Username: root
+  Password: "123456"
+  MaxOpenConn: 100
+  SSLMode: disable
+  CacheTime: 5
+
+RedisConf:
+  Host: 192.168.26.130:6380
+  Db: 0
+

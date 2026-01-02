@@ -1,0 +1,58 @@
+package agentgroup
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/agentgroup"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/msg/errormsg"
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type UpdateAgentGroupLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewUpdateAgentGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UpdateAgentGroupLogic {
+	return &UpdateAgentGroupLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *UpdateAgentGroupLogic) UpdateAgentGroup(in *ops.AgentGroupInfo) (*ops.BaseResp, error) {
+	query := l.svcCtx.DB.AgentGroup.UpdateOneID(*in.Id).
+		SetNotNilName(in.Name).
+		SetNotNilDescription(in.Description).
+		SetNotNilAutoFailover(in.AutoFailover)
+
+	// 转换enum字段
+	if in.SelectionStrategy != nil {
+		query.SetSelectionStrategy(agentgroup.SelectionStrategy(*in.SelectionStrategy))
+	}
+
+	if in.Status != nil {
+		query.SetNotNilStatus(pointy.GetPointer(uint8(*in.Status)))
+	}
+	if in.HealthCheckInterval != nil {
+		query.SetNotNilHealthCheckInterval(pointy.GetPointer(int(*in.HealthCheckInterval)))
+	}
+	if in.MaxRetryCount != nil {
+		query.SetNotNilMaxRetryCount(pointy.GetPointer(int(*in.MaxRetryCount)))
+	}
+
+	err := query.Exec(l.ctx)
+
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	return &ops.BaseResp{Msg: errormsg.UpdateSuccess}, nil
+}

@@ -1,0 +1,58 @@
+package script_execution
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetScriptExecutionByIdLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetScriptExecutionByIdLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetScriptExecutionByIdLogic {
+	return &GetScriptExecutionByIdLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetScriptExecutionByIdLogic) GetScriptExecutionById(in *ops.IDReq) (*ops.ScriptExecutionInfo, error) {
+	result, err := l.svcCtx.DB.ScriptExecution.Get(l.ctx, in.Id)
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	return &ops.ScriptExecutionInfo{
+		Id:              &result.ID,
+		CreatedAt:       pointy.GetPointer(result.CreatedAt.UnixMilli()),
+		UpdatedAt:       pointy.GetPointer(result.UpdatedAt.UnixMilli()),
+		Status:          pointy.GetPointer(uint32(result.Status)),
+		ScriptId:        &result.ScriptID,
+		ExecutionId:     &result.ExecutionID,
+		ExecutorUserId:  &result.ExecutorUserID,
+		TriggerType:     &result.TriggerType,
+		TargetCiIds:     &result.TargetCiIds,
+		TargetCount:     &result.TargetCount,
+		Parameters:      &result.Parameters,
+		RawParameters:   &result.RawParameters,
+		ExecutionStatus: &result.ExecutionStatus,
+		StartedAt:       pointy.GetUnixMilliPointer(result.StartedAt.UnixMilli()),
+		CompletedAt:     pointy.GetUnixMilliPointer(result.CompletedAt.UnixMilli()),
+		DurationMs:      &result.DurationMs,
+		SuccessCount:    &result.SuccessCount,
+		FailureCount:    &result.FailureCount,
+		TimeoutCount:    &result.TimeoutCount,
+		TaskId:          &result.TaskID,
+		ErrorMessage:    &result.ErrorMessage,
+		ExecutionLog:    &result.ExecutionLog,
+	}, nil
+}

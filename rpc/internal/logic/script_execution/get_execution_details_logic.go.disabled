@@ -1,0 +1,80 @@
+package script_execution
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-common/v2/utils/pointy"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetExecutionDetailsLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetExecutionDetailsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetExecutionDetailsLogic {
+	return &GetExecutionDetailsLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetExecutionDetailsLogic) GetExecutionDetails(in *ops.GetExecutionDetailsReq) (*ops.GetExecutionDetailsResp, error) {
+	// 1. 验证参数
+	if in.ExecutionId == nil || *in.ExecutionId == "" {
+		return nil, fmt.Errorf("execution_id is required")
+	}
+
+	// 2. 查询执行详情列表
+	details, err := l.svcCtx.ScriptExecutor.GetExecutionDetails(l.ctx, *in.ExecutionId)
+	if err != nil {
+		l.Logger.Errorw("Failed to get execution details",
+			logx.Field("execution_id", *in.ExecutionId),
+			logx.Field("error", err.Error()))
+		return nil, err
+	}
+
+	// 3. 转换为proto消息列表
+	detailInfos := make([]*ops.ScriptExecutionDetailInfo, len(details))
+	for i, detail := range details {
+		detailInfos[i] = &ops.ScriptExecutionDetailInfo{
+			Id:             &detail.ID,
+			CreatedAt:      &detail.CreatedAt.Unix(),
+			UpdatedAt:      &detail.UpdatedAt.Unix(),
+			Status:         &detail.Status,
+			ExecutionId:    &detail.ExecutionID,
+			CiId:           &detail.CiID,
+			CiName:         &detail.CiName,
+			CiIp:           &detail.CiIP,
+			ExecStatus:     &detail.ExecStatus,
+			StartedAt:      pointy.GetPointer(detail.StartedAt.Unix()),
+			CompletedAt:    pointy.GetPointer(detail.CompletedAt.Unix()),
+			DurationMs:     &detail.DurationMs,
+			Output:         &detail.Output,
+			ErrorOutput:    &detail.ErrorOutput,
+			ExitCode:       &detail.ExitCode,
+			FullOutputPath: &detail.FullOutputPath,
+			TaskId:         &detail.TaskID,
+			WorkerId:       &detail.WorkerID,
+			ProxyId:        &detail.ProxyID,
+			ErrorMessage:   &detail.ErrorMessage,
+			RetryCount:     &detail.RetryCount,
+		}
+	}
+
+	// 4. 返回结果
+	total := uint64(len(details))
+	l.Logger.Infow("Execution details retrieved",
+		logx.Field("execution_id", *in.ExecutionId),
+		logx.Field("total", total))
+
+	return &ops.GetExecutionDetailsResp{
+		Total: &total,
+		Data:  detailInfos,
+	}, nil
+}

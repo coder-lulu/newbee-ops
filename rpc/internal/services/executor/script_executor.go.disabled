@@ -1,0 +1,650 @@
+package executor
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/script"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/scriptexecution"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/scriptexecutiondetail"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/dispatcher"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/logic/worker"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/services/template"
+	"github.com/google/uuid"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+// ExecuteScriptRequest 执行脚本请求
+type ExecuteScriptRequest struct {
+	ScriptID       uint64                 // 脚本ID
+	ExecutorUserID uint64                 // 执行用户ID
+	TriggerType    string                 // 触发类型：manual/schedule/event/api
+	TargetCIIDs    []string               // 目标CI ID列表
+	Parameters     map[string]interface{} // 参数（原始）
+}
+
+// ExecuteScriptResult 执行脚本结果
+type ExecuteScriptResult struct {
+	ExecutionID string // 执行ID
+	Status      string // 执行状态
+	Message     string // 消息
+}
+
+// ScriptExecutor 脚本执行器
+type ScriptExecutor struct {
+	db             *ent.Client
+	templateEngine template.TemplateEngine
+	taskDispatcher *dispatcher.TaskDispatcher
+	workerManager  *worker.WorkerManager
+	logger         logx.Logger
+}
+
+// NewScriptExecutor 创建脚本执行器实例
+func NewScriptExecutor(
+	db *ent.Client,
+	templateEngine template.TemplateEngine,
+	taskDispatcher *dispatcher.TaskDispatcher,
+	workerManager *worker.WorkerManager,
+) *ScriptExecutor {
+	return &ScriptExecutor{
+		db:             db,
+		templateEngine: templateEngine,
+		taskDispatcher: taskDispatcher,
+		workerManager:  workerManager,
+		logger:         logx.WithContext(context.Background()),
+	}
+}
+
+// Execute 执行脚本
+func (e *ScriptExecutor) Execute(ctx context.Context, req *ExecuteScriptRequest) (*ExecuteScriptResult, error) {
+	// 1. 查询脚本信息
+	scriptInfo, err := e.getScript(ctx, req.ScriptID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get script: %w", err)
+	}
+
+	// 2. 验证脚本权限（预留）
+	// TODO: 实现RBAC权限检查和风险级别验证
+
+	// 3. 渲染脚本内容（如果是模板）
+	renderedContent, err := e.renderScript(scriptInfo, req.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render script: %w", err)
+	}
+
+	// 4. 创建执行记录
+	execution, err := e.createExecution(ctx, scriptInfo, req, renderedContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create execution: %w", err)
+	}
+
+	// 5. 创建执行详情记录
+	details, err := e.createExecutionDetailsWithReturn(ctx, execution, req.TargetCIIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create execution details: %w", err)
+	}
+
+	// 6. 异步分发任务到Worker/Proxy
+	go e.dispatchTasks(context.Background(), scriptInfo, execution, details, renderedContent)
+
+	// 7. 返回执行结果
+	return &ExecuteScriptResult{
+		ExecutionID: execution.ExecutionID,
+		Status:      execution.ExecutionStatus,
+		Message:     fmt.Sprintf("Script execution created successfully, targets: %d", len(req.TargetCIIDs)),
+	}, nil
+}
+
+// getScript 获取脚本信息
+func (e *ScriptExecutor) getScript(ctx context.Context, scriptID uint64) (*ent.Script, error) {
+	scriptInfo, err := e.db.Script.Query().
+		Where(script.IDEQ(scriptID)).
+		First(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return scriptInfo, nil
+}
+
+// renderScript 渲染脚本内容
+func (e *ScriptExecutor) renderScript(scriptInfo *ent.Script, parameters map[string]interface{}) (string, error) {
+	// 如果不是模板，直接返回原始内容
+	if !scriptInfo.IsTemplate {
+		return scriptInfo.Content, nil
+	}
+
+	// 使用模板引擎渲染
+	renderedContent, err := e.templateEngine.Render(scriptInfo.Content, parameters)
+	if err != nil {
+		return "", fmt.Errorf("template render error: %w", err)
+	}
+
+	return renderedContent, nil
+}
+
+// createExecution 创建执行记录
+func (e *ScriptExecutor) createExecution(
+	ctx context.Context,
+	scriptInfo *ent.Script,
+	req *ExecuteScriptRequest,
+	renderedContent string,
+) (*ent.ScriptExecution, error) {
+	// 生成执行ID
+	executionID := uuid.New().String()
+
+	// 序列化参数
+	parametersJSON, _ := json.Marshal(req.Parameters)
+	rawParametersJSON, _ := json.Marshal(req.Parameters)
+
+	// 创建执行记录
+	execution, err := e.db.ScriptExecution.Create().
+		SetScriptID(scriptInfo.ID).
+		SetExecutionID(executionID).
+		SetExecutorUserID(req.ExecutorUserID).
+		SetTriggerType(req.TriggerType).
+		SetTargetCiIds(req.TargetCIIDs).
+		SetTargetCount(uint32(len(req.TargetCIIDs))).
+		SetParameters(string(parametersJSON)).
+		SetRawParameters(string(rawParametersJSON)).
+		SetExecutionStatus("pending").
+		SetStartedAt(time.Now()).
+		Save(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	e.logger.Infof("Execution created: %s, script: %s, targets: %d",
+		executionID, scriptInfo.Name, len(req.TargetCIIDs))
+
+	return execution, nil
+}
+
+// createExecutionDetails 创建执行详情记录（不返回详情）
+func (e *ScriptExecutor) createExecutionDetails(
+	ctx context.Context,
+	execution *ent.ScriptExecution,
+	targetCIIDs []string,
+) error {
+	// 批量创建执行详情
+	bulk := make([]*ent.ScriptExecutionDetailCreate, len(targetCIIDs))
+	for i, ciID := range targetCIIDs {
+		bulk[i] = e.db.ScriptExecutionDetail.Create().
+			SetExecutionID(execution.ID).
+			SetCiID(ciID).
+			SetExecStatus("pending")
+	}
+
+	_, err := e.db.ScriptExecutionDetail.CreateBulk(bulk...).Save(ctx)
+	if err != nil {
+		return err
+	}
+
+	e.logger.Infof("Execution details created: %d records for execution %s",
+		len(targetCIIDs), execution.ExecutionID)
+
+	return nil
+}
+
+// createExecutionDetailsWithReturn 创建执行详情记录并返回
+func (e *ScriptExecutor) createExecutionDetailsWithReturn(
+	ctx context.Context,
+	execution *ent.ScriptExecution,
+	targetCIIDs []string,
+) ([]*ent.ScriptExecutionDetail, error) {
+	// 批量创建执行详情
+	bulk := make([]*ent.ScriptExecutionDetailCreate, len(targetCIIDs))
+	for i, ciID := range targetCIIDs {
+		bulk[i] = e.db.ScriptExecutionDetail.Create().
+			SetExecutionID(execution.ID).
+			SetCiID(ciID).
+			SetExecStatus("pending")
+	}
+
+	details, err := e.db.ScriptExecutionDetail.CreateBulk(bulk...).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	e.logger.Infof("Execution details created: %d records for execution %s",
+		len(targetCIIDs), execution.ExecutionID)
+
+	return details, nil
+}
+
+// GetExecutionStatus 获取执行状态
+func (e *ScriptExecutor) GetExecutionStatus(ctx context.Context, executionID string) (*ent.ScriptExecution, error) {
+	execution, err := e.db.ScriptExecution.Query().
+		Where(scriptexecution.ExecutionIDEQ(executionID)).
+		First(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return execution, nil
+}
+
+// GetExecutionDetails 获取执行详情列表
+func (e *ScriptExecutor) GetExecutionDetails(ctx context.Context, executionID string) ([]*ent.ScriptExecutionDetail, error) {
+	// 先查询执行记录获取内部ID
+	execution, err := e.db.ScriptExecution.Query().
+		Where(scriptexecution.ExecutionIDEQ(executionID)).
+		First(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// 查询执行详情
+	details, err := e.db.ScriptExecutionDetail.Query().
+		Where(scriptexecutiondetail.ExecutionIDEQ(execution.ID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return details, nil
+}
+
+// CancelExecution 取消执行
+func (e *ScriptExecutor) CancelExecution(ctx context.Context, executionID string) error {
+	// 1. 查询执行记录
+	execution, err := e.db.ScriptExecution.Query().
+		Where(scriptexecution.ExecutionIDEQ(executionID)).
+		First(ctx)
+	if err != nil {
+		return fmt.Errorf("execution not found: %w", err)
+	}
+
+	// 2. 检查执行状态是否可以取消
+	if execution.ExecutionStatus == "success" ||
+		execution.ExecutionStatus == "failed" ||
+		execution.ExecutionStatus == "cancelled" ||
+		execution.ExecutionStatus == "timeout" {
+		return fmt.Errorf("cannot cancel execution with status: %s", execution.ExecutionStatus)
+	}
+
+	// 3. 更新执行记录状态为cancelled
+	now := time.Now()
+	_, err = e.db.ScriptExecution.UpdateOne(execution).
+		SetExecutionStatus("cancelled").
+		SetCompletedAt(now).
+		SetDurationMs(uint64(now.Sub(execution.StartedAt).Milliseconds())).
+		Save(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update execution status: %w", err)
+	}
+
+	// 4. 更新所有pending/running状态的执行详情为cancelled
+	_, err = e.db.ScriptExecutionDetail.Update().
+		Where(
+			scriptexecutiondetail.ExecutionIDEQ(execution.ID),
+			scriptexecutiondetail.ExecStatusIn("pending", "running"),
+		).
+		SetExecStatus("cancelled").
+		SetCompletedAt(now).
+		Save(ctx)
+	if err != nil {
+		e.logger.Errorw("Failed to update execution details",
+			logx.Field("execution_id", executionID),
+			logx.Field("error", err.Error()))
+		// 不返回错误，因为主记录已经更新
+	}
+
+	// 5. TODO: 取消相关的Task（需要Task系统支持取消操作）
+	// if execution.TaskID != "" {
+	//     e.taskDispatcher.CancelTask(ctx, execution.TaskID)
+	// }
+
+	e.logger.Infow("Execution cancelled",
+		logx.Field("execution_id", executionID),
+		logx.Field("internal_id", execution.ID))
+
+	return nil
+}
+
+// UpdateTaskResult 更新任务执行结果并聚合到脚本执行记录
+func (e *ScriptExecutor) UpdateTaskResult(ctx context.Context, taskID string, status string, resultData, errorMessage *string, executionTimeMs *int64) error {
+	// 1. 通过task_id查找对应的ScriptExecutionDetail
+	detail, err := e.db.ScriptExecutionDetail.Query().
+		Where(scriptexecutiondetail.TaskIDEQ(taskID)).
+		First(ctx)
+	if err != nil {
+		// 如果找不到detail，说明这个task不是通过脚本执行创建的，直接返回
+		if ent.IsNotFound(err) {
+			e.logger.Infow("Task not associated with script execution, skipping aggregation",
+				logx.Field("task_id", taskID))
+			return nil
+		}
+		return fmt.Errorf("failed to query execution detail: %w", err)
+	}
+
+	// 2. 更新ScriptExecutionDetail记录
+	now := time.Now()
+	updateBuilder := e.db.ScriptExecutionDetail.UpdateOne(detail).
+		SetExecStatus(status).
+		SetCompletedAt(now)
+
+	// 计算执行耗时
+	if detail.StartedAt.IsZero() {
+		updateBuilder = updateBuilder.SetStartedAt(now)
+	}
+	durationMs := uint64(now.Sub(detail.StartedAt).Milliseconds())
+	if executionTimeMs != nil {
+		durationMs = uint64(*executionTimeMs)
+	}
+	updateBuilder = updateBuilder.SetDurationMs(durationMs)
+
+	// 更新输出和错误信息
+	if resultData != nil && *resultData != "" {
+		// 截断输出到10KB
+		output := *resultData
+		if len(output) > 10240 {
+			updateBuilder = updateBuilder.SetOutput(output[:10240])
+			// TODO: 可选 - 将完整输出存储到S3/OSS
+			// updateBuilder = updateBuilder.SetFullOutputPath(s3Path)
+		} else {
+			updateBuilder = updateBuilder.SetOutput(output)
+		}
+	}
+
+	if errorMessage != nil && *errorMessage != "" {
+		updateBuilder = updateBuilder.SetErrorMessage(*errorMessage)
+		// 如果有错误信息，也记录到error_output
+		errorOutput := *errorMessage
+		if len(errorOutput) > 10240 {
+			errorOutput = errorOutput[:10240]
+		}
+		updateBuilder = updateBuilder.SetErrorOutput(errorOutput)
+	}
+
+	// 根据状态设置exit_code
+	exitCode := int32(0)
+	if status == "failed" {
+		exitCode = 1
+	} else if status == "timeout" {
+		exitCode = 124
+	}
+	updateBuilder = updateBuilder.SetExitCode(exitCode)
+
+	_, err = updateBuilder.Save(ctx)
+	if err != nil {
+		e.logger.Errorw("Failed to update execution detail",
+			logx.Field("task_id", taskID),
+			logx.Field("detail_id", detail.ID),
+			logx.Field("error", err))
+		return fmt.Errorf("failed to update execution detail: %w", err)
+	}
+
+	e.logger.Infow("Execution detail updated",
+		logx.Field("task_id", taskID),
+		logx.Field("detail_id", detail.ID),
+		logx.Field("status", status),
+		logx.Field("duration_ms", durationMs))
+
+	// 3. 异步聚合结果到ScriptExecution
+	go e.aggregateExecutionResults(context.Background(), detail.ExecutionID)
+
+	return nil
+}
+
+// aggregateExecutionResults 聚合执行详情到执行记录
+func (e *ScriptExecutor) aggregateExecutionResults(ctx context.Context, executionInternalID uint64) {
+	// 1. 查询执行记录
+	execution, err := e.db.ScriptExecution.Get(ctx, executionInternalID)
+	if err != nil {
+		e.logger.Errorw("Failed to get execution for aggregation",
+			logx.Field("execution_id", executionInternalID),
+			logx.Field("error", err))
+		return
+	}
+
+	// 2. 统计所有执行详情的状态
+	details, err := e.db.ScriptExecutionDetail.Query().
+		Where(scriptexecutiondetail.ExecutionIDEQ(executionInternalID)).
+		All(ctx)
+	if err != nil {
+		e.logger.Errorw("Failed to query execution details for aggregation",
+			logx.Field("execution_id", execution.ExecutionID),
+			logx.Field("error", err))
+		return
+	}
+
+	var successCount, failureCount, timeoutCount uint32
+	var pendingCount, runningCount int
+	for _, detail := range details {
+		switch detail.ExecStatus {
+		case "success":
+			successCount++
+		case "failed":
+			failureCount++
+		case "timeout":
+			timeoutCount++
+		case "pending":
+			pendingCount++
+		case "running":
+			runningCount++
+		}
+	}
+
+	// 3. 确定整体执行状态
+	totalCount := len(details)
+	completedCount := int(successCount + failureCount + timeoutCount)
+
+	var finalStatus string
+	var completedAt time.Time
+	var durationMs uint64
+
+	if completedCount == totalCount {
+		// 所有任务都已完成
+		completedAt = time.Now()
+		durationMs = uint64(completedAt.Sub(execution.StartedAt).Milliseconds())
+
+		if failureCount == 0 && timeoutCount == 0 {
+			finalStatus = "success" // 全部成功
+		} else if successCount == 0 {
+			finalStatus = "failed" // 全部失败
+		} else {
+			finalStatus = "partial_success" // 部分成功
+		}
+	} else if runningCount > 0 || pendingCount > 0 {
+		// 还有任务在执行中或待执行
+		finalStatus = "running"
+	} else {
+		// 其他情况（不应该出现）
+		finalStatus = "unknown"
+	}
+
+	// 4. 更新ScriptExecution记录
+	updateBuilder := e.db.ScriptExecution.UpdateOne(execution).
+		SetSuccessCount(successCount).
+		SetFailureCount(failureCount).
+		SetTimeoutCount(timeoutCount).
+		SetExecutionStatus(finalStatus)
+
+	if completedCount == totalCount {
+		updateBuilder = updateBuilder.
+			SetCompletedAt(completedAt).
+			SetDurationMs(durationMs)
+	}
+
+	err = updateBuilder.Exec(ctx)
+	if err != nil {
+		e.logger.Errorw("Failed to update execution aggregation",
+			logx.Field("execution_id", execution.ExecutionID),
+			logx.Field("error", err))
+		return
+	}
+
+	e.logger.Infow("Execution aggregation completed",
+		logx.Field("execution_id", execution.ExecutionID),
+		logx.Field("status", finalStatus),
+		logx.Field("success", successCount),
+		logx.Field("failure", failureCount),
+		logx.Field("timeout", timeoutCount),
+		logx.Field("completed", completedCount),
+		logx.Field("total", totalCount))
+}
+
+// dispatchTasks 异步分发任务到Worker/Proxy
+func (e *ScriptExecutor) dispatchTasks(
+	ctx context.Context,
+	scriptInfo *ent.Script,
+	execution *ent.ScriptExecution,
+	details []*ent.ScriptExecutionDetail,
+	renderedContent string,
+) {
+	e.logger.Infow("Starting task dispatch",
+		logx.Field("execution_id", execution.ExecutionID),
+		logx.Field("target_count", len(details)))
+
+	// 更新执行状态为running
+	_, err := e.db.ScriptExecution.UpdateOne(execution).
+		SetExecutionStatus("running").
+		Save(ctx)
+	if err != nil {
+		e.logger.Errorw("Failed to update execution status to running",
+			logx.Field("execution_id", execution.ExecutionID),
+			logx.Field("error", err))
+	}
+
+	// 确定是否需要Proxy执行
+	needsProxy := scriptInfo.Executor == "ssh" || scriptInfo.Executor == "telnet" || scriptInfo.Executor == "rdp"
+
+	// 为每个目标CI创建和分发Task
+	for _, detail := range details {
+		// 1. 创建Task记录
+		taskID := uuid.New().String()
+		task, err := e.db.Task.Create().
+			SetTaskID(taskID).
+			SetName(fmt.Sprintf("Script: %s - CI: %s", scriptInfo.Name, detail.CiID)).
+			SetExecutor(scriptInfo.Executor).
+			SetCiIds([]string{detail.CiID}).
+			SetCommandContent(renderedContent).
+			SetCommandTimeout(int(scriptInfo.DefaultTimeout)).
+			SetStatusStr("pending").
+			Save(ctx)
+
+		if err != nil {
+			e.logger.Errorw("Failed to create task",
+				logx.Field("execution_id", execution.ExecutionID),
+				logx.Field("ci_id", detail.CiID),
+				logx.Field("error", err))
+
+			// 更新detail状态为failed
+			e.db.ScriptExecutionDetail.UpdateOne(detail).
+				SetExecStatus("failed").
+				SetErrorMessage(fmt.Sprintf("Failed to create task: %v", err)).
+				Save(ctx)
+			continue
+		}
+
+		// 2. 更新detail的task_id
+		_, err = e.db.ScriptExecutionDetail.UpdateOne(detail).
+			SetTaskID(task.TaskID).
+			Save(ctx)
+		if err != nil {
+			e.logger.Errorw("Failed to update detail with task_id",
+				logx.Field("detail_id", detail.ID),
+				logx.Field("task_id", task.TaskID),
+				logx.Field("error", err))
+		}
+
+		// 3. 如果需要Proxy，选择Worker并分发任务
+		if needsProxy {
+			// 选择Worker
+			selectedWorker, err := e.workerManager.SelectWorker(ctx, execution.TenantID, "least_connections", &worker.SelectOptions{
+				RequiredCapabilities: []string{scriptInfo.Executor},
+			})
+
+			if err != nil {
+				e.logger.Errorw("Failed to select worker",
+					logx.Field("task_id", task.TaskID),
+					logx.Field("executor", scriptInfo.Executor),
+					logx.Field("error", err))
+
+				// 更新Task和Detail状态
+				e.db.Task.UpdateOne(task).
+					SetStatusStr("worker_unavailable").
+					SetErrorMsg(fmt.Sprintf("Failed to select worker: %v", err)).
+					Save(ctx)
+
+				e.db.ScriptExecutionDetail.UpdateOne(detail).
+					SetExecStatus("failed").
+					SetErrorMessage(fmt.Sprintf("Worker unavailable: %v", err)).
+					Save(ctx)
+				continue
+			}
+
+			// 更新Task的worker_id
+			_, err = e.db.Task.UpdateOne(task).
+				SetWorkerID(selectedWorker.WorkerID).
+				SetStatusStr("dispatching").
+				SetDispatchedAt(time.Now()).
+				Save(ctx)
+			if err != nil {
+				e.logger.Errorw("Failed to update task with worker_id",
+					logx.Field("task_id", task.TaskID),
+					logx.Field("worker_id", selectedWorker.WorkerID),
+					logx.Field("error", err))
+			}
+
+			// 分发任务到Proxy
+			err = e.taskDispatcher.DispatchTask(ctx, task, selectedWorker)
+			if err != nil {
+				e.logger.Errorw("Failed to dispatch task to proxy",
+					logx.Field("task_id", task.TaskID),
+					logx.Field("worker_id", selectedWorker.WorkerID),
+					logx.Field("error", err))
+
+				// 更新Task和Detail状态
+				e.db.Task.UpdateOne(task).
+					SetStatusStr("dispatch_failed").
+					SetErrorMsg(fmt.Sprintf("Failed to dispatch: %v", err)).
+					Save(ctx)
+
+				e.db.ScriptExecutionDetail.UpdateOne(detail).
+					SetExecStatus("failed").
+					SetErrorMessage(fmt.Sprintf("Dispatch failed: %v", err)).
+					Save(ctx)
+				continue
+			}
+
+			// 更新Task状态为dispatched
+			_, err = e.db.Task.UpdateOne(task).
+				SetStatusStr("dispatched").
+				Save(ctx)
+			if err != nil {
+				e.logger.Errorw("Failed to update task status to dispatched",
+					logx.Field("task_id", task.TaskID),
+					logx.Field("error", err))
+			}
+
+			// 更新Detail状态为running
+			_, err = e.db.ScriptExecutionDetail.UpdateOne(detail).
+				SetExecStatus("running").
+				SetStartedAt(time.Now()).
+				Save(ctx)
+			if err != nil {
+				e.logger.Errorw("Failed to update detail status to running",
+					logx.Field("detail_id", detail.ID),
+					logx.Field("error", err))
+			}
+
+			e.logger.Infow("Task dispatched successfully",
+				logx.Field("task_id", task.TaskID),
+				logx.Field("worker_id", selectedWorker.WorkerID),
+				logx.Field("ci_id", detail.CiID))
+		} else {
+			// Agent执行模式（暂不实现，标记为pending）
+			e.logger.Infow("Task created for agent execution",
+				logx.Field("task_id", task.TaskID),
+				logx.Field("ci_id", detail.CiID))
+		}
+	}
+
+	e.logger.Infow("Task dispatch completed",
+		logx.Field("execution_id", execution.ExecutionID),
+		logx.Field("total_tasks", len(details)))
+}

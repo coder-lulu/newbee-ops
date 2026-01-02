@@ -1,0 +1,53 @@
+package script_execution
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type CancelExecutionLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewCancelExecutionLogic(ctx context.Context, svcCtx *svc.ServiceContext) *CancelExecutionLogic {
+	return &CancelExecutionLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *CancelExecutionLogic) CancelExecution(in *ops.CancelExecutionReq) (*ops.BaseResp, error) {
+	// 1. 验证参数
+	if in.ExecutionId == nil || *in.ExecutionId == "" {
+		return nil, fmt.Errorf("execution_id is required")
+	}
+
+	// 2. 调用执行器取消执行
+	err := l.svcCtx.ScriptExecutor.CancelExecution(l.ctx, *in.ExecutionId)
+	if err != nil {
+		l.Logger.Errorw("Failed to cancel execution",
+			logx.Field("execution_id", *in.ExecutionId),
+			logx.Field("error", err.Error()))
+		return &ops.BaseResp{
+			Code: 500,
+			Msg:  fmt.Sprintf("Failed to cancel execution: %v", err),
+		}, err
+	}
+
+	// 3. 返回成功响应
+	l.Logger.Infow("Execution cancelled successfully",
+		logx.Field("execution_id", *in.ExecutionId))
+
+	return &ops.BaseResp{
+		Code: 0,
+		Msg:  "Execution cancelled successfully",
+	}, nil
+}

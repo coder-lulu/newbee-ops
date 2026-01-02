@@ -1,0 +1,41 @@
+//                              Script execution request/response messages
+
+//       ExecuteScriptReq 执行脚本请求
+message ExecuteScriptReq {
+  optional uint64 script_id = 1;           // 脚本ID
+  optional uint64 executor_user_id = 2;    // 执行用户ID
+  optional string trigger_type = 3;        // 触发类型：manual/schedule/event/api
+  repeated string target_ci_ids = 4;       // 目标CI ID列表
+  optional string parameters = 5;          // 参数（JSON格式）
+}
+
+//       ExecuteScriptResp 执行脚本响应
+message ExecuteScriptResp {
+  optional string execution_id = 1;        // 执行ID
+  optional string status = 2;              // 执行状态
+  optional string message = 3;             // 消息
+}
+
+//       GetExecutionStatusReq 获取执行状态请求
+message GetExecutionStatusReq {
+  optional string execution_id = 1;        // 执行ID
+}
+
+//       GetExecutionDetailsReq 获取执行详情请求
+message GetExecutionDetailsReq {
+  optional string execution_id = 1;        // 执行ID
+  optional uint64 page = 2;                // 页码
+  optional uint64 page_size = 3;           // 每页大小
+}
+
+//       GetExecutionDetailsResp 获取执行详情响应
+message GetExecutionDetailsResp {
+  optional uint64 total = 1;
+  repeated ScriptExecutionDetailInfo data = 2;
+}
+
+//       CancelExecutionReq 取消执行请求
+message CancelExecutionReq {
+  optional string execution_id = 1;        // 执行ID
+}
+

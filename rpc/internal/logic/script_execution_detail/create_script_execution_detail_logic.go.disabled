@@ -1,0 +1,63 @@
+package script_execution_detail
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+    "github.com/suyuan32/simple-admin-common/msg/errormsg"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type CreateScriptExecutionDetailLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewCreateScriptExecutionDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext) *CreateScriptExecutionDetailLogic {
+	return &CreateScriptExecutionDetailLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *CreateScriptExecutionDetailLogic) CreateScriptExecutionDetail(in *ops.ScriptExecutionDetailInfo) (*ops.BaseIDResp, error) {
+    query := l.svcCtx.DB.ScriptExecutionDetail.Create().
+			SetNotNilSaveutionID(in.SaveutionId).
+			SetNotNilCiID(in.CiId).
+			SetNotNilCiName(in.CiName).
+			SetNotNilCiIP(in.CiIp).
+			SetNotNilSaveStatus(in.SaveStatus).
+			SetNotNilStartedAt(pointy.GetTimeMilliPointer(in.StartedAt)).
+			SetNotNilCompletedAt(pointy.GetTimeMilliPointer(in.CompletedAt)).
+			SetNotNilDurationMs(in.DurationMs).
+			SetNotNilOutput(in.Output).
+			SetNotNilErrorOutput(in.ErrorOutput).
+			SetNotNilFullOutputPath(in.FullOutputPath).
+			SetNotNilTaskID(in.TaskId).
+			SetNotNilWorkerID(in.WorkerId).
+			SetNotNilProxyID(in.ProxyId).
+			SetNotNilErrorMessage(in.ErrorMessage).
+			SetNotNilRetryCount(in.RetryCount)
+
+	if in.Status != nil {
+		query.SetNotNilStatus(pointy.GetPointer(uint8(*in.Status)))
+	}
+	if in.ExitCode != nil {
+		query.SetNotNilExitCode(pointy.GetPointer(int(*in.ExitCode)))
+	}
+
+	result, err := query.Save(l.ctx)
+
+    if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+    return &ops.BaseIDResp{Id: result.ID, Msg: errormsg.CreateSuccess }, nil
+}

@@ -1,0 +1,13 @@
+syntax = "v1"
+
+info (
+	title:   "OPS-Center API (Minimal)"
+	desc:    "仅包含Worker和WorkerGroup功能"
+	version: "v1.0"
+)
+
+import "base.api"
+import "worker.api"
+import "workergroup.api"
+import "agent.api"
+import "agentgroup.api"

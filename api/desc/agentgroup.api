@@ -1,0 +1,86 @@
+syntax = "v1"
+
+info (
+	title:   "Agent分组管理API"
+	desc:    "OPS-Center Agent分组管理接口"
+	version: "v1.0"
+)
+
+type (
+	// AgentGroup基础信息
+	AgentGroupItem {
+		Id                  uint64 `json:"id"`
+		Name                string `json:"name"`
+		Description         string `json:"description,optional"`
+		SelectionStrategy   string `json:"selection_strategy"` // round_robin, least_load, random
+		HealthCheckInterval int64  `json:"health_check_interval"`
+		AutoFailover        bool   `json:"auto_failover"`
+		MemberCount         int    `json:"member_count,optional"` // 成员数量
+	}
+	// AgentGroup详细信息
+	AgentGroupDetail {
+		Id                  uint64 `json:"id"`
+		CreatedAt           int64  `json:"created_at"`
+		UpdatedAt           int64  `json:"updated_at"`
+		Status              uint32 `json:"status"`
+		Name                string `json:"name"`
+		Description         string `json:"description,optional"`
+		SelectionStrategy   string `json:"selection_strategy"`
+		HealthCheckInterval int64  `json:"health_check_interval"`
+		AutoFailover        bool   `json:"auto_failover"`
+		MaxRetryCount       int64  `json:"max_retry_count"`
+	}
+	// AgentGroup详情响应
+	AgentGroupDetailResp {
+		Code int              `json:"code"`
+		Msg  string           `json:"msg"`
+		Data AgentGroupDetail `json:"data"`
+	}
+	// AgentGroup列表请求
+	AgentGroupListReq {
+		Page     uint64 `form:"page,default=1"`
+		PageSize uint64 `form:"pageSize,default=10"`
+		Status   uint32 `form:"status,optional"`
+		Name     string `form:"name,optional"`
+	}
+	// AgentGroup列表响应
+	AgentGroupListResp {
+		Total uint64           `json:"total"`
+		Data  []AgentGroupItem `json:"data"`
+	}
+	// 创建/更新AgentGroup请求
+	AgentGroupInfo {
+		Id                  uint64 `json:"id,optional"`
+		Name                string `json:"name"`
+		Description         string `json:"description,optional"`
+		SelectionStrategy   string `json:"selection_strategy,default=round_robin"`
+		HealthCheckInterval int64  `json:"health_check_interval,default=60"`
+		AutoFailover        bool   `json:"auto_failover,default=true"`
+		MaxRetryCount       int64  `json:"max_retry_count,default=3"`
+	})
+
+@server (
+	group: agentgroup
+)
+service ops-api {
+	@doc "获取Agent分组列表"
+	@handler getAgentGroupList
+	get /agentgroup/list (AgentGroupListReq) returns (AgentGroupListResp)
+
+	@doc "获取Agent分组详情"
+	@handler getAgentGroupById
+	get /agentgroup/:id (IDReq) returns (AgentGroupDetailResp)
+
+	@doc "创建Agent分组"
+	@handler createAgentGroup
+	post /agentgroup/create (AgentGroupInfo) returns (BaseIDResp)
+
+	@doc "更新Agent分组"
+	@handler updateAgentGroup
+	post /agentgroup/update (AgentGroupInfo) returns (BaseResp)
+
+	@doc "删除Agent分组"
+	@handler deleteAgentGroup
+	post /agentgroup/delete (IDsReq) returns (BaseResp)
+}
+

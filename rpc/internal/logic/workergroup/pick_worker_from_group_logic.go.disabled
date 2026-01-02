@@ -1,0 +1,260 @@
+package workergroup
+
+import (
+	"context"
+	"fmt"
+	"hash/crc32"
+	"math/rand"
+	"sort"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxygroupmember"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type PickWorkerFromGroupLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewPickWorkerFromGroupLogic(ctx context.Context, svcCtx *svc.ServiceContext) *PickWorkerFromGroupLogic {
+	return &PickWorkerFromGroupLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+type workerCandidate struct {
+	member *ent.ProxyGroupMember
+	worker *ent.Worker
+}
+
+// PickWorkerFromGroup 从分组中选择Worker（负载均衡）
+func (l *PickWorkerFromGroupLogic) PickWorkerFromGroup(in *ops.PickWorkerFromGroupReq) (*ops.PickWorkerFromGroupResp, error) {
+	// 1. 查询分组信息
+	group, err := l.svcCtx.DB.ProxyGroup.Get(l.ctx, in.GetGroupId())
+	if err != nil {
+		return nil, fmt.Errorf("worker group not found: %w", err)
+	}
+
+	// 2. 查询分组成员及其Worker详情
+	members, err := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(proxygroupmember.ProxyGroupIDEQ(group.ID)).
+		WithWorker().
+		All(l.ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query group members: %w", err)
+	}
+
+	if len(members) == 0 {
+		return nil, fmt.Errorf("no workers in group")
+	}
+
+	// 3. 过滤候选Worker
+	candidates := l.filterCandidates(members, in)
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no available workers matching criteria")
+	}
+
+	// 4. 根据策略选择Worker
+	var selected *workerCandidate
+	switch group.SelectionStrategy {
+	case "round_robin":
+		selected = l.selectRoundRobin(candidates)
+	case "least_connections":
+		selected = l.selectLeastConnections(candidates)
+	case "weighted":
+		selected = l.selectWeighted(candidates)
+	case "random":
+		selected = l.selectRandom(candidates)
+	case "consistent_hash":
+		selected = l.selectConsistentHash(candidates, in.GetSessionId())
+	default:
+		selected = l.selectLeastConnections(candidates) // 默认使用最少连接
+	}
+
+	if selected == nil {
+		return nil, fmt.Errorf("failed to select worker")
+	}
+
+	// 5. 更新选择统计
+	go l.updateSelectionStats(selected.member)
+
+	// 6. 构建响应
+	w := selected.worker
+	result := &ops.PickWorkerFromGroupResp{
+		WorkerId: &w.WorkerID,
+		Name:     &w.Name,
+		Ip:       &w.IP,
+		Port:     pointy.GetPointer(int32(w.Port)),
+		Msg:      pointy.GetPointer(fmt.Sprintf("Selected worker using %s strategy", group.SelectionStrategy)),
+	}
+
+	return result, nil
+}
+
+// filterCandidates 过滤候选Worker
+func (l *PickWorkerFromGroupLogic) filterCandidates(members []*ent.ProxyGroupMember, req *ops.PickWorkerFromGroupReq) []*workerCandidate {
+	candidates := make([]*workerCandidate, 0, len(members))
+
+	for _, member := range members {
+		w := member.Edges.Worker
+		if w == nil {
+			continue
+		}
+
+		// 过滤离线Worker
+		if w.WorkerStatus == "offline" {
+			continue
+		}
+
+		// 过滤备用节点（除非没有其他可用节点）
+		if member.IsBackup {
+			continue
+		}
+
+		// 过滤连续失败次数过多的Worker
+		if member.ConsecutiveFailures > 3 {
+			continue
+		}
+
+		// TODO: 根据required_capabilities, preferred_region, required_tags过滤
+		// 这需要Worker schema中有对应字段
+
+		candidates = append(candidates, &workerCandidate{
+			member: member,
+			worker: w,
+		})
+	}
+
+	// 如果没有可用的主节点，尝试使用备用节点
+	if len(candidates) == 0 {
+		for _, member := range members {
+			w := member.Edges.Worker
+			if w != nil && w.WorkerStatus != "offline" && member.IsBackup {
+				candidates = append(candidates, &workerCandidate{
+					member: member,
+					worker: w,
+				})
+			}
+		}
+	}
+
+	return candidates
+}
+
+// selectRoundRobin 轮询选择
+func (l *PickWorkerFromGroupLogic) selectRoundRobin(candidates []*workerCandidate) *workerCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// 按上次选择时间排序，选择最久未被选择的
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].member.LastSelectedAt == nil {
+			return true
+		}
+		if candidates[j].member.LastSelectedAt == nil {
+			return false
+		}
+		return candidates[i].member.LastSelectedAt.Before(*candidates[j].member.LastSelectedAt)
+	})
+
+	return candidates[0]
+}
+
+// selectLeastConnections 最少连接选择
+func (l *PickWorkerFromGroupLogic) selectLeastConnections(candidates []*workerCandidate) *workerCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// 按活跃会话数排序
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].worker.ActiveSessions < candidates[j].worker.ActiveSessions
+	})
+
+	return candidates[0]
+}
+
+// selectWeighted 加权随机选择
+func (l *PickWorkerFromGroupLogic) selectWeighted(candidates []*workerCandidate) *workerCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// 计算总权重
+	totalWeight := 0
+	for _, c := range candidates {
+		totalWeight += c.member.Weight
+	}
+
+	if totalWeight == 0 {
+		return l.selectRandom(candidates)
+	}
+
+	// 加权随机选择
+	rand.Seed(time.Now().UnixNano())
+	randomWeight := rand.Intn(totalWeight)
+
+	currentWeight := 0
+	for _, c := range candidates {
+		currentWeight += c.member.Weight
+		if randomWeight < currentWeight {
+			return c
+		}
+	}
+
+	return candidates[len(candidates)-1]
+}
+
+// selectRandom 随机选择
+func (l *PickWorkerFromGroupLogic) selectRandom(candidates []*workerCandidate) *workerCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	return candidates[rand.Intn(len(candidates))]
+}
+
+// selectConsistentHash 一致性哈希选择
+func (l *PickWorkerFromGroupLogic) selectConsistentHash(candidates []*workerCandidate, sessionID string) *workerCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	if sessionID == "" {
+		// 如果没有sessionID，降级为轮询
+		return l.selectRoundRobin(candidates)
+	}
+
+	// 使用CRC32哈希
+	hash := crc32.ChecksumIEEE([]byte(sessionID))
+	index := int(hash) % len(candidates)
+
+	return candidates[index]
+}
+
+// updateSelectionStats 更新选择统计（异步）
+func (l *PickWorkerFromGroupLogic) updateSelectionStats(member *ent.ProxyGroupMember) {
+	now := time.Now()
+	_, err := l.svcCtx.DB.ProxyGroupMember.UpdateOneID(member.ID).
+		SetLastSelectedAt(now).
+		SetSelectCount(member.SelectCount + 1).
+		Save(context.Background())
+
+	if err != nil {
+		logx.Errorw("Failed to update selection stats",
+			logx.Field("member_id", member.ID),
+			logx.Field("error", err))
+	}
+}

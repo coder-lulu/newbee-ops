@@ -1,0 +1,117 @@
+package workergroup
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxygroupmember"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetWorkerGroupMembersLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetWorkerGroupMembersLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetWorkerGroupMembersLogic {
+	return &GetWorkerGroupMembersLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+// GetWorkerGroupMembers 获取分组成员详情
+func (l *GetWorkerGroupMembersLogic) GetWorkerGroupMembers(in *ops.IDReq) (*ops.ProxyGroupInfoWithMembers, error) {
+	// 1. 查询分组基本信息
+	group, err := l.svcCtx.DB.ProxyGroup.Get(l.ctx, in.Id)
+	if err != nil {
+		return nil, fmt.Errorf("worker group not found: %w", err)
+	}
+
+	// 2. 查询分组成员及其Worker详情
+	members, err := l.svcCtx.DB.ProxyGroupMember.Query().
+		Where(proxygroupmember.ProxyGroupIDEQ(group.ID)).
+		WithWorker().
+		All(l.ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query group members: %w", err)
+	}
+
+	// 3. 构建响应
+	result := &ops.ProxyGroupInfoWithMembers{
+		Id:                  &group.ID,
+		CreatedAt:           pointy.GetPointer(group.CreatedAt.Unix()),
+		UpdatedAt:           pointy.GetPointer(group.UpdatedAt.Unix()),
+		Status:              pointy.GetPointer(uint32(group.Status)),
+		Name:                &group.Name,
+		Description:         &group.Description,
+		SelectionStrategy:   pointy.GetPointer(string(group.SelectionStrategy)),
+		HealthCheckInterval: pointy.GetPointer(int32(group.HealthCheckInterval)),
+		AutoFailover:        &group.AutoFailover,
+		MaxRetryCount:       pointy.GetPointer(int32(group.MaxRetryCount)),
+		MinHealthyProxies:   pointy.GetPointer(int32(group.MinHealthyProxies)),
+	}
+
+	// 4. 转换成员信息
+	result.Members = make([]*ops.ProxyGroupMemberWithWorker, 0, len(members))
+	onlineCount := 0
+	totalWeight := 0
+
+	for _, member := range members {
+		w := member.Edges.Worker
+		if w == nil {
+			continue
+		}
+
+		// 统计在线数和总权重
+		if w.WorkerStatus == "online" {
+			onlineCount++
+		}
+		totalWeight += member.Weight
+
+		memberInfo := &ops.ProxyGroupMemberWithWorker{
+			Id:             &member.ID,
+			WorkerId:       &member.WorkerID,
+			WorkerGroupId:  &member.ProxyGroupID,
+			Weight:         pointy.GetPointer(int32(member.Weight)),
+			Priority:       pointy.GetPointer(int32(member.Priority)),
+			IsBackup:       &member.IsBackup,
+			SelectCount:    pointy.GetPointer(int32(member.SelectCount)),
+			WorkerInfo: &ops.WorkerInfo{
+				Id:             &w.ID,
+				WorkerId:       &w.WorkerID,
+				Name:           &w.Name,
+				Ip:             &w.IP,
+				Port:           pointy.GetPointer(int32(w.Port)),
+				WorkerStatus:   pointy.GetPointer(string(w.WorkerStatus)),
+				ActiveSessions: pointy.GetPointer(int32(w.ActiveSessions)),
+				CpuUsage:       &w.CPUUsage,
+				MemoryUsage:    &w.MemoryUsage,
+				LastHeartbeat:  pointy.GetPointer(w.LastHeartbeat.Unix()),
+			},
+		}
+
+		if member.JoinedAt != nil {
+			joinedAt := member.JoinedAt.Unix()
+			memberInfo.JoinedAt = &joinedAt
+		}
+
+		result.Members = append(result.Members, memberInfo)
+	}
+
+	// 5. 填充统计信息
+	result.Stats = &ops.ProxyGroupStats{
+		TotalMembers:  pointy.GetPointer(int32(len(members))),
+		OnlineMembers: pointy.GetPointer(int32(onlineCount)),
+		TotalWeight:   pointy.GetPointer(int32(totalWeight)),
+	}
+
+	return result, nil
+}

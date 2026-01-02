@@ -1,0 +1,270 @@
+syntax = "v1"
+
+info (
+	title:   "Script管理API"
+	desc:    "OPS-Center 脚本命令存储库接口"
+	version: "v1.0"
+)
+
+type (
+	// 脚本基础信息（用于列表展示）
+	ScriptItem {
+		Id               uint64   `json:"id"`
+		CreatedAt        int64    `json:"createdAt"`
+		Name             string   `json:"name"`
+		Code             string   `json:"code"`
+		Description      string   `json:"description,optional"`
+		CategoryId       uint64   `json:"categoryId,optional"`
+		CategoryName     string   `json:"categoryName,optional"`
+		Tags             []string `json:"tags,optional"`
+		ScriptType       string   `json:"scriptType"` // shell, bash, python, sql, javascript, http, snmp
+		Executor         string   `json:"executor"` // agent, ssh, telnet, rdp, http, snmp
+		IsTemplate       bool     `json:"isTemplate"`
+		Version          string   `json:"version"`
+		IsLatest         bool     `json:"isLatest"`
+		RiskLevel        string   `json:"riskLevel"` // low, medium, high, critical
+		Schedulable      bool     `json:"schedulable"`
+		ExecutionCount   uint64   `json:"executionCount"`
+		SuccessCount     uint64   `json:"successCount"`
+		FailureCount     uint64   `json:"failureCount"`
+		LastExecutedAt   int64    `json:"lastExecutedAt,optional"`
+	}
+
+	// 脚本详细信息
+	ScriptDetail {
+		Id                    uint64            `json:"id"`
+		CreatedAt             int64             `json:"createdAt"`
+		UpdatedAt             int64             `json:"updatedAt"`
+		Status                uint32            `json:"status"`
+		Name                  string            `json:"name"`
+		Code                  string            `json:"code"`
+		Description           string            `json:"description,optional"`
+		CategoryId            uint64            `json:"categoryId,optional"`
+		Tags                  []string          `json:"tags,optional"`
+		ScriptType            string            `json:"scriptType"`
+		Executor              string            `json:"executor"`
+		Content               string            `json:"content"`
+		IsTemplate            bool              `json:"isTemplate"`
+		TemplateEngine        string            `json:"templateEngine,optional"` // go-template, jinja2
+		Parameters            map[string]string `json:"parameters,optional"` // JSON Schema
+		Version               string            `json:"version"`
+		BaseVersionId         uint64            `json:"baseVersionId,optional"`
+		IsLatest              bool              `json:"isLatest"`
+		TargetCiTypes         []string          `json:"targetCiTypes,optional"`
+		TargetOsTypes         []string          `json:"targetOsTypes,optional"`
+		TargetSelector        map[string]string `json:"targetSelector,optional"`
+		CredentialRef         string            `json:"credentialRef,optional"`
+		RequiredCapabilities  []string          `json:"requiredCapabilities,optional"`
+		DefaultTimeout        uint32            `json:"defaultTimeout"`
+		DefaultWorkdir        string            `json:"defaultWorkdir,optional"`
+		DefaultEnv            map[string]string `json:"defaultEnv,optional"`
+		RequireConfirmation   bool              `json:"requireConfirmation"`
+		RiskLevel             string            `json:"riskLevel"`
+		Schedulable           bool              `json:"schedulable"`
+		DefaultSchedule       string            `json:"defaultSchedule,optional"`
+		ExecutionCount        uint64            `json:"executionCount"`
+		SuccessCount          uint64            `json:"successCount"`
+		FailureCount          uint64            `json:"failureCount"`
+		LastExecutedAt        int64             `json:"lastExecutedAt,optional"`
+	}
+
+	// 脚本详情响应
+	ScriptDetailResp {
+		Code int          `json:"code"`
+		Msg  string       `json:"msg"`
+		Data ScriptDetail `json:"data"`
+	}
+
+	// 脚本列表请求
+	ScriptListReq {
+		Page       uint64 `form:"page,default=1"`
+		PageSize   uint64 `form:"pageSize,default=20"`
+		CategoryId uint64 `form:"categoryId,optional"`
+		ScriptType string `form:"scriptType,optional"`
+		Executor   string `form:"executor,optional"`
+		Tags       string `form:"tags,optional"` // 逗号分隔
+		Name       string `form:"name,optional"` // 模糊搜索
+		Code       string `form:"code,optional"` // 精确搜索
+		IsTemplate bool   `form:"isTemplate,optional"`
+		IsLatest   bool   `form:"isLatest,optional,default=true"`
+		RiskLevel  string `form:"riskLevel,optional"`
+	}
+
+	// 脚本列表响应
+	ScriptListResp {
+		Code int            `json:"code"`
+		Msg  string         `json:"msg"`
+		Data ScriptListData `json:"data"`
+	}
+
+	// 脚本列表数据
+	ScriptListData {
+		Total uint64       `json:"total"`
+		Data  []ScriptItem `json:"data"`
+	}
+
+	// 创建/更新脚本请求
+	ScriptInfo {
+		Id                   uint64            `json:"id,optional"`
+		Name                 string            `json:"name"`
+		Code                 string            `json:"code"`
+		Description          string            `json:"description,optional"`
+		CategoryId           uint64            `json:"categoryId,optional"`
+		Tags                 []string          `json:"tags,optional"`
+		ScriptType           string            `json:"scriptType"` // shell, bash, python, sql, javascript, http, snmp
+		Executor             string            `json:"executor"` // agent, ssh, telnet, rdp, http, snmp
+		Content              string            `json:"content"`
+		IsTemplate           bool              `json:"isTemplate,optional,default=false"`
+		TemplateEngine       string            `json:"templateEngine,optional"`
+		Parameters           map[string]string `json:"parameters,optional"`
+		TargetCiTypes        []string          `json:"targetCiTypes,optional"`
+		TargetOsTypes        []string          `json:"targetOsTypes,optional"`
+		TargetSelector       map[string]string `json:"targetSelector,optional"`
+		CredentialRef        string            `json:"credentialRef,optional"`
+		RequiredCapabilities []string          `json:"requiredCapabilities,optional"`
+		DefaultTimeout       uint32            `json:"defaultTimeout,optional,default=300"`
+		DefaultWorkdir       string            `json:"defaultWorkdir,optional"`
+		DefaultEnv           map[string]string `json:"defaultEnv,optional"`
+		RequireConfirmation  bool              `json:"requireConfirmation,optional,default=false"`
+		RiskLevel            string            `json:"riskLevel,optional,default=low"` // low, medium, high, critical
+		Schedulable          bool              `json:"schedulable,optional,default=true"`
+		DefaultSchedule      string            `json:"defaultSchedule,optional"`
+	}
+
+	// 脚本分类（用于树形展示）
+	ScriptCategoryItem {
+		Id          uint64               `json:"id"`
+		Name        string               `json:"name"`
+		Code        string               `json:"code"`
+		Description string               `json:"description,optional"`
+		ParentId    uint64               `json:"parentId,optional"`
+		SortOrder   uint32               `json:"sortOrder"`
+		Icon        string               `json:"icon,optional"`
+		Children    []ScriptCategoryItem `json:"children,optional"`
+		ScriptCount uint64               `json:"scriptCount,optional"` // 该分类下的脚本数量
+	}
+
+	// 脚本分类列表请求
+	ScriptCategoryListReq {
+		ParentId uint64 `form:"parentId,optional"` // 0或不传表示查询顶级分类
+		Tree     bool   `form:"tree,optional,default=true"` // true返回树形结构，false返回扁平列表
+	}
+
+	// 脚本分类列表响应
+	ScriptCategoryListResp {
+		Code int                   `json:"code"`
+		Msg  string                `json:"msg"`
+		Data []ScriptCategoryItem `json:"data"`
+	}
+
+	// 创建/更新分类请求
+	ScriptCategoryInfo {
+		Id          uint64 `json:"id,optional"`
+		Name        string `json:"name"`
+		Code        string `json:"code"`
+		Description string `json:"description,optional"`
+		ParentId    uint64 `json:"parentId,optional"`
+		SortOrder   uint32 `json:"sortOrder,optional,default=0"`
+		Icon        string `json:"icon,optional"`
+	}
+
+	// 脚本分类详情响应
+	ScriptCategoryDetailResp {
+		Code int                `json:"code"`
+		Msg  string             `json:"msg"`
+		Data ScriptCategoryInfo `json:"data"`
+	}
+
+	// 脚本版本项（用于列表展示）
+	ScriptVersionItem {
+		Id          uint64 `json:"id"`
+		ScriptId    uint64 `json:"scriptId"`
+		Version     string `json:"version"`
+		Content     string `json:"content"`
+		ScriptType  string `json:"scriptType"`
+		ContentHash string `json:"contentHash"`
+		CreatedBy   uint64 `json:"createdBy"`
+		CreatedAt   int64  `json:"createdAt"`
+		Remark      string `json:"remark,optional"`
+	}
+
+	// 脚本版本列表请求
+	ScriptVersionListReq {
+		Page     uint64 `json:"page,default=1"`
+		PageSize uint64 `json:"pageSize,default=20"`
+		ScriptId uint64 `json:"scriptId"`
+	}
+
+	// 脚本版本列表响应
+	ScriptVersionListResp {
+		Code int                   `json:"code"`
+		Msg  string                `json:"msg"`
+		Data ScriptVersionListData `json:"data"`
+	}
+
+	// 脚本版本列表数据
+	ScriptVersionListData {
+		Total uint64              `json:"total"`
+		Data  []ScriptVersionItem `json:"data"`
+	}
+
+	// 脚本版本详情响应
+	ScriptVersionDetailResp {
+		Code int               `json:"code"`
+		Msg  string            `json:"msg"`
+		Data ScriptVersionItem `json:"data"`
+	}
+)
+
+@server (
+	group: script
+)
+service ops-api {
+	@doc "获取脚本列表"
+	@handler getScriptList
+	get /script/list (ScriptListReq) returns (ScriptListResp)
+
+	@doc "获取脚本详情"
+	@handler getScriptById
+	get /script (IDFormReq) returns (ScriptDetailResp)
+
+	@doc "创建脚本"
+	@handler createScript
+	post /script/create (ScriptInfo) returns (BaseIDResp)
+
+	@doc "更新脚本"
+	@handler updateScript
+	post /script/update (ScriptInfo) returns (BaseResp)
+
+	@doc "删除脚本"
+	@handler deleteScript
+	post /script/delete (IDsReq) returns (BaseResp)
+
+	@doc "获取脚本分类列表"
+	@handler getScriptCategoryList
+	get /script/category/list (ScriptCategoryListReq) returns (ScriptCategoryListResp)
+
+	@doc "获取脚本分类详情"
+	@handler getScriptCategoryById
+	get /script/category (IDFormReq) returns (ScriptCategoryDetailResp)
+
+	@doc "创建脚本分类"
+	@handler createScriptCategory
+	post /script/category/create (ScriptCategoryInfo) returns (BaseIDResp)
+
+	@doc "更新脚本分类"
+	@handler updateScriptCategory
+	post /script/category/update (ScriptCategoryInfo) returns (BaseResp)
+
+	@doc "删除脚本分类"
+	@handler deleteScriptCategory
+	post /script/category/delete (IDsReq) returns (BaseResp)
+
+	@doc "获取脚本版本列表"
+	@handler getScriptVersionList
+	post /script_version/list (ScriptVersionListReq) returns (ScriptVersionListResp)
+
+	@doc "获取脚本版本详情"
+	@handler getScriptVersionById
+	post /script_version (IDReq) returns (ScriptVersionDetailResp)
+}

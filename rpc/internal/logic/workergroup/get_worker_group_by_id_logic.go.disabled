@@ -1,0 +1,51 @@
+package workergroup
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetWorkerGroupByIdLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetWorkerGroupByIdLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetWorkerGroupByIdLogic {
+	return &GetWorkerGroupByIdLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetWorkerGroupByIdLogic) GetWorkerGroupById(in *ops.IDReq) (*ops.ProxyGroupInfo, error) {
+	result, err := l.svcCtx.DB.ProxyGroup.Get(l.ctx, in.Id)
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	return &ops.ProxyGroupInfo{
+		Id:                  &result.ID,
+		CreatedAt:           pointy.GetPointer(result.CreatedAt.Unix()),
+		UpdatedAt:           pointy.GetPointer(result.UpdatedAt.Unix()),
+		Status:              pointy.GetPointer(uint32(result.Status)),
+		Name:                &result.Name,
+		Description:         &result.Description,
+		SelectionStrategy:   pointy.GetPointer(string(result.SelectionStrategy)),
+		HealthCheckInterval: pointy.GetPointer(int32(result.HealthCheckInterval)),
+		AutoFailover:        &result.AutoFailover,
+		MaxRetryCount:       pointy.GetPointer(int32(result.MaxRetryCount)),
+		MinHealthyProxies:   pointy.GetPointer(int32(result.MinHealthyProxies)),
+		TotalMembers:        pointy.GetPointer(int32(result.TotalMembers)),
+		OnlineMembers:       pointy.GetPointer(int32(result.OnlineMembers)),
+		TotalWeight:         pointy.GetPointer(int32(result.TotalWeight)),
+	}, nil
+}
+

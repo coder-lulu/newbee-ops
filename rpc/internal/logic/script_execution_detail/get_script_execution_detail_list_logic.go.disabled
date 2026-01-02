@@ -1,0 +1,129 @@
+package script_execution_detail
+
+import (
+	"context"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent/scriptexecutiondetail"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/predicate"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+    "github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetScriptExecutionDetailListLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetScriptExecutionDetailListLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetScriptExecutionDetailListLogic {
+	return &GetScriptExecutionDetailListLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetScriptExecutionDetailListLogic) GetScriptExecutionDetailList(in *ops.ScriptExecutionDetailListReq) (*ops.ScriptExecutionDetailListResp, error) {
+	var predicates []predicate.ScriptExecutionDetail
+	if in.CreatedAt != nil {
+		predicates = append(predicates, scriptexecutiondetail.CreatedAtGTE(time.UnixMilli(*in.CreatedAt)))
+	}
+	if in.UpdatedAt != nil {
+		predicates = append(predicates, scriptexecutiondetail.UpdatedAtGTE(time.UnixMilli(*in.UpdatedAt)))
+	}
+	if in.Status != nil {
+		predicates = append(predicates, scriptexecutiondetail.StatusEQ(uint8(*in.Status)))
+	}
+	if in.ExecutionId != nil {
+		predicates = append(predicates, scriptexecutiondetail.ExecutionIDEQ(*in.ExecutionId))
+	}
+	if in.CiId != nil {
+		predicates = append(predicates, scriptexecutiondetail.CiIDContains(*in.CiId))
+	}
+	if in.CiName != nil {
+		predicates = append(predicates, scriptexecutiondetail.CiNameContains(*in.CiName))
+	}
+	if in.CiIp != nil {
+		predicates = append(predicates, scriptexecutiondetail.CiIPContains(*in.CiIp))
+	}
+	if in.ExecStatus != nil {
+		predicates = append(predicates, scriptexecutiondetail.ExecStatusContains(*in.ExecStatus))
+	}
+	if in.StartedAt != nil {
+		predicates = append(predicates, scriptexecutiondetail.StartedAtGTE(time.UnixMilli(*in.StartedAt)))
+	}
+	if in.CompletedAt != nil {
+		predicates = append(predicates, scriptexecutiondetail.CompletedAtGTE(time.UnixMilli(*in.CompletedAt)))
+	}
+	if in.DurationMs != nil {
+		predicates = append(predicates, scriptexecutiondetail.DurationMsEQ(*in.DurationMs))
+	}
+	if in.Output != nil {
+		predicates = append(predicates, scriptexecutiondetail.OutputContains(*in.Output))
+	}
+	if in.ErrorOutput != nil {
+		predicates = append(predicates, scriptexecutiondetail.ErrorOutputContains(*in.ErrorOutput))
+	}
+	if in.ExitCode != nil {
+		predicates = append(predicates, scriptexecutiondetail.ExitCodeEQ(int(*in.ExitCode)))
+	}
+	if in.FullOutputPath != nil {
+		predicates = append(predicates, scriptexecutiondetail.FullOutputPathContains(*in.FullOutputPath))
+	}
+	if in.TaskId != nil {
+		predicates = append(predicates, scriptexecutiondetail.TaskIDContains(*in.TaskId))
+	}
+	if in.WorkerId != nil {
+		predicates = append(predicates, scriptexecutiondetail.WorkerIDContains(*in.WorkerId))
+	}
+	if in.ProxyId != nil {
+		predicates = append(predicates, scriptexecutiondetail.ProxyIDContains(*in.ProxyId))
+	}
+	if in.ErrorMessage != nil {
+		predicates = append(predicates, scriptexecutiondetail.ErrorMessageContains(*in.ErrorMessage))
+	}
+	if in.RetryCount != nil {
+		predicates = append(predicates, scriptexecutiondetail.RetryCountEQ(*in.RetryCount))
+	}
+	result, err := l.svcCtx.DB.ScriptExecutionDetail.Query().Where(predicates...).Page(l.ctx, in.Page, in.PageSize)
+
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	resp := &ops.ScriptExecutionDetailListResp{}
+	resp.Total = result.PageDetails.Total
+
+	for _, v := range result.List {
+		resp.Data = append(resp.Data, &ops.ScriptExecutionDetailInfo{
+			Id:          &v.ID,
+			CreatedAt:   pointy.GetPointer(v.CreatedAt.UnixMilli()),
+			UpdatedAt:   pointy.GetPointer(v.UpdatedAt.UnixMilli()),
+			Status:	pointy.GetPointer(uint32(v.Status)),
+			ExecutionId:	&v.ExecutionID,
+			CiId:	&v.CiID,
+			CiName:	&v.CiName,
+			CiIp:	&v.CiIP,
+			ExecStatus:	&v.ExecStatus,
+			StartedAt:	pointy.GetUnixMilliPointer(v.StartedAt.UnixMilli()),
+			CompletedAt:	pointy.GetUnixMilliPointer(v.CompletedAt.UnixMilli()),
+			DurationMs:	&v.DurationMs,
+			Output:	&v.Output,
+			ErrorOutput:	&v.ErrorOutput,
+			ExitCode:	pointy.GetPointer(int64(v.ExitCode)),
+			FullOutputPath:	&v.FullOutputPath,
+			TaskId:	&v.TaskID,
+			WorkerId:	&v.WorkerID,
+			ProxyId:	&v.ProxyID,
+			ErrorMessage:	&v.ErrorMessage,
+			RetryCount:	&v.RetryCount,
+		})
+	}
+
+	return resp, nil
+}

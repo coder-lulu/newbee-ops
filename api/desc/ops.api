@@ -1,0 +1,267 @@
+type (
+	CreateSessionReq {
+		CiId        string
+		Protocol    string            // ssh|telnet|rdp|vnc
+		PreferProxy string            // override AccessProfile.PreferProxy
+		Params      map[string]string // extra handshake params
+		Options     SessionOptions    // protocol-specific options
+		Comment     string
+	}
+	CreateSessionData {
+		SessionId string
+		ProxyId   string
+		WsUrl     string
+		Token     string
+		ExpiresAt int64
+		Handshake map[string]string
+	}
+	CreateSessionResp {
+		Code int               `json:"code"`
+		Msg  string            `json:"msg"`
+		Data CreateSessionData `json:"data"`
+	}
+	CloseSessionReq {
+		SessionId string
+		Reason    string
+		Force     bool
+	}
+	CloseSessionData {
+		Ok       bool
+		ClosedAt int64
+	}
+	CloseSessionResp {
+		Code int              `json:"code"`
+		Msg  string           `json:"msg"`
+		Data CloseSessionData `json:"data"`
+	}
+	SessionItem {
+		Id        string
+		TenantId  string
+		UserId    string
+		CiId      string
+		Protocol  string
+		ProxyId   string
+		Endpoint  string
+		CreatedAt int64
+		ExpiresAt int64
+		Status    string
+		ClosedAt  int64
+	}
+	SessionItemResp {
+		Code int         `json:"code"`
+		Msg  string      `json:"msg"`
+		Data SessionItem `json:"data"`
+	}
+	SessionListData {
+		Items []SessionItem
+		Total int
+	}
+	SessionListResp {
+		Code int             `json:"code"`
+		Msg  string          `json:"msg"`
+		Data SessionListData `json:"data"`
+	}
+
+	GetSessionReq {
+		Id string
+	}
+	GetSessionQueryReq {
+		Id       string
+		CiId     string
+		Status   string
+		Protocol string
+		ProxyId  string
+		UserId   string
+	}
+	ListSessionReq {
+		Status   string
+		CiId     string
+		Page     int
+		Size     int
+		Protocol string
+		ProxyId  string
+		UserId   string
+		Begin    int    // created_at >= Begin (unix seconds)
+		End      int    // created_at <= End (unix seconds)
+		SortBy   string // created_at|closed_at
+		Order    string // asc|desc
+	}
+
+	SessionOptions {
+		Port     int
+		Width    int // for RDP/VNC
+		Height   int // for RDP/VNC
+		Depth    int // color depth for RDP
+		Locale   string
+		Timezone string
+	}
+	OpsProxyRegisterReq {
+		ProxyId      string
+		Region       string
+		Az           string
+		Endpoints    map[string]string
+		Capabilities []string
+		Labels       map[string]string
+	}
+	OpsProxyHeartbeatReq {
+		ProxyId string
+		Status  string
+		Load    HeartbeatLoad
+	}
+	HeartbeatLoad {
+		CPU     float64
+		Mem     float64
+		Session HeartbeatSession
+	}
+	HeartbeatSession {
+		Active int
+		Max    int
+	}
+	PickProxyData {
+		ProxyId  string
+		Endpoint string
+	}
+	PickProxyResp {
+		Code int           `json:"code"`
+		Msg  string        `json:"msg"`
+		Data PickProxyData `json:"data"`
+	}
+	AccessProfile {
+		CiId          string
+		Capabilities  []string
+		Ports         map[string]int
+		CredentialRef string
+		PreferProxy   string
+		JumpChain     []string
+		Tags          map[string]string
+	}
+	AccessProfileResp {
+		Code int           `json:"code"`
+		Msg  string        `json:"msg"`
+		Data AccessProfile `json:"data"`
+	}
+	AccessProfileReq {
+		AccessProfile AccessProfile
+	}
+	AccessProfileListData {
+		Items []AccessProfile
+		Total int
+	}
+	AccessProfileListResp {
+		Code int                   `json:"code"`
+		Msg  string                `json:"msg"`
+		Data AccessProfileListData `json:"data"`
+	}
+
+	// Task types
+	CreateTaskReq {
+		Name     string
+		CiIds    []string
+		Executor string // agent|ssh
+		Command  TaskCommand
+	}
+	TaskCommand {
+		Content string
+		Timeout int
+		Env     map[string]string
+		WorkDir string
+	}
+	CreateTaskData {
+		TaskId string
+		Status string
+	}
+	CreateTaskResp {
+		Code int            `json:"code"`
+		Msg  string         `json:"msg"`
+		Data CreateTaskData `json:"data"`
+	}
+	TaskStatusData {
+		TaskId string
+		Status string
+	}
+	TaskStatusResp {
+		Code int            `json:"code"`
+		Msg  string         `json:"msg"`
+		Data TaskStatusData `json:"data"`
+	}
+	TaskResultData {
+		TaskId   string
+		Status   string
+		Output   string
+		Error    string
+		ExitCode int
+	}
+	TaskResultResp {
+		Code int            `json:"code"`
+		Msg  string         `json:"msg"`
+		Data TaskResultData `json:"data"`
+	}
+
+	// Task result report from Proxy (Phase 2)
+	ReportTaskResultReq {
+		TaskId          string `json:"task_id"`
+		Status          string `json:"status"`
+		ResultData      string `json:"result_data,optional"`
+		ErrorMessage    string `json:"error_message,optional"`
+		ExecutionTimeMs int64  `json:"execution_time_ms,optional"`
+		EndTime         int64  `json:"end_time,optional"`
+	}
+)
+
+@server (
+	group: ops
+)
+service ops-api {
+	@handler CreateSession
+	post /ops/session/create (CreateSessionReq) returns (CreateSessionResp)
+
+	@handler CloseSession
+	post /ops/session/close (CloseSessionReq) returns (CloseSessionResp)
+
+	@handler GetSession
+	get /ops/session/:id (GetSessionReq) returns (SessionItemResp)
+
+	@handler GetSessionByQuery
+	get /ops/session/get (GetSessionQueryReq) returns (SessionItemResp)
+
+	@handler ListSession
+	get /ops/session/list (ListSessionReq) returns (SessionListResp)
+
+	@handler RegisterProxy
+	post /ops/proxy/register (OpsProxyRegisterReq)
+
+	@handler HeartbeatProxy
+	post /ops/proxy/heartbeat (OpsProxyHeartbeatReq)
+
+	@handler PickProxy
+	get /ops/proxy/pick returns (PickProxyResp)
+
+	@handler CreateProfile
+	post /ops/profile/create (AccessProfileReq) returns (BaseMsgResp)
+
+	@handler UpdateProfile
+	post /ops/profile/update (AccessProfileReq) returns (BaseMsgResp)
+
+	@handler GetProfile
+	get /ops/profile/get returns (AccessProfileResp)
+
+	@handler ListProfile
+	get /ops/profile/list returns (AccessProfileListResp)
+
+	@handler DeleteProfile
+	delete /ops/profile/delete returns (BaseMsgResp)
+
+	// Task routes
+	@handler CreateTask
+	post /ops/task/create (CreateTaskReq) returns (CreateTaskResp)
+
+	@handler GetTaskStatus
+	get /ops/task/status/:taskId returns (TaskStatusResp)
+
+	@handler GetTaskResult
+	get /ops/task/result/:taskId returns (TaskResultResp)
+
+	// Phase 2: Proxy reports task execution result
+	@handler ReportTaskResult
+	post /task/result (ReportTaskResultReq) returns (BaseMsgResp)
+}

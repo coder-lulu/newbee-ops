@@ -1,0 +1,140 @@
+syntax = "v1"
+
+info (
+	title:   "Agent管理API"
+	desc:    "OPS-Center Agent管理接口"
+	version: "v1.0"
+)
+
+type (
+	// Agent基础信息（简化版，用于列表展示）
+	AgentItem {
+		Id            uint64  `json:"id"`
+		Name          string  `json:"name"`
+		AgentId       string  `json:"agent_id"`
+		Host          string  `json:"host"`
+		Port          int64   `json:"port"`
+		AgentStatus   string  `json:"agent_status"` // online, offline, error
+		LastHeartbeat int64   `json:"last_heartbeat"`
+		Region        string  `json:"region,optional"`
+		Tags          string  `json:"tags,optional"` // JSON string
+		Version       string  `json:"version,optional"`
+		CpuUsage      float64 `json:"cpu_usage,optional"`
+		MemoryUsage   float64 `json:"memory_usage,optional"`
+	}
+	// Agent详细信息
+	AgentDetail {
+		Id                 uint64  `json:"id"`
+		CreatedAt          int64   `json:"created_at"`
+		UpdatedAt          int64   `json:"updated_at"`
+		Status             uint32  `json:"status"`
+		Name               string  `json:"name"`
+		AgentId            string  `json:"agent_id"`
+		Host               string  `json:"host"`
+		Port               int64   `json:"port"`
+		Description        string  `json:"description,optional"`
+		AgentStatus        string  `json:"agent_status"`
+		LastHeartbeat      int64   `json:"last_heartbeat"`
+		HeartbeatInterval  int64   `json:"heartbeat_interval"`
+		LastOnlineAt       int64   `json:"last_online_at,optional"`
+		SupportedProviders string  `json:"supported_providers,optional"`
+		Capabilities       string  `json:"capabilities,optional"`
+		MaxConcurrentTasks int64   `json:"max_concurrent_tasks"`
+		Tags               string  `json:"tags,optional"`
+		Region             string  `json:"region,optional"`
+		LocalIp            string  `json:"local_ip,optional"`
+		PublicIp           string  `json:"public_ip,optional"`
+		NetworkSegments    string  `json:"network_segments,optional"`
+		ActiveSessions     int64   `json:"active_sessions"`
+		CpuUsage           float64 `json:"cpu_usage"`
+		MemoryUsage        float64 `json:"memory_usage"`
+		TotalRequests      int64   `json:"total_requests"`
+		SuccessfulRequests int64   `json:"successful_requests"`
+		FailedRequests     int64   `json:"failed_requests"`
+		Version            string  `json:"version,optional"`
+	}
+	// Agent列表请求
+	AgentListReq {
+		Page        uint64 `form:"page,default=1"`
+		PageSize    uint64 `form:"pageSize,default=10"`
+		Status      uint32 `form:"status,optional"` // 启用状态: 1=正常 2=禁用
+		AgentStatus string `form:"agentStatus,optional"` // 运行状态: online, offline
+		Region      string `form:"region,optional"`
+		Name        string `form:"name,optional"`
+		Tags        string `form:"tags,optional"`
+	}
+	// Agent列表响应
+	AgentListResp {
+		Total uint64      `json:"total"`
+		Data  []AgentItem `json:"data"`
+	}
+	// 创建/更新Agent请求
+	AgentInfo {
+		Id                 uint64 `json:"id,optional"`
+		Name               string `json:"name"`
+		AgentId            string `json:"agent_id"`
+		Host               string `json:"host"`
+		Port               int64  `json:"port"`
+		Description        string `json:"description,optional"`
+		HeartbeatInterval  int64  `json:"heartbeat_interval,default=30"`
+		MaxConcurrentTasks int64  `json:"max_concurrent_tasks,default=10"`
+		Region             string `json:"region,optional"`
+		Tags               string `json:"tags,optional"`
+	}
+	// Agent选择请求（供Discovery使用）
+	AgentSelectionReq {
+		SelectionMode  string `json:"selection_mode"` // manual_agent, manual_group, auto_*
+		AgentId        string `json:"agent_id,optional"` // manual_agent模式
+		AgentGroupId   uint64 `json:"agent_group_id,optional"` // manual_group模式
+		Provider       string `json:"provider,optional"` // 需要的Provider能力
+		Region         string `json:"region,optional"` // 优先区域
+		NetworkSegment string `json:"network_segment,optional"` // 需要的网段
+	}
+	// Agent选择数据
+	AgentSelectionData {
+		AgentId string `json:"agent_id"`
+		Host    string `json:"host"`
+		Port    int64  `json:"port"`
+	}
+	// Agent选择响应
+	AgentSelectionResp {
+		Code int                `json:"code"`
+		Msg  string             `json:"msg"`
+		Data AgentSelectionData `json:"data"`
+	}
+	// Agent详情响应
+	AgentDetailResp {
+		Code int         `json:"code"`
+		Msg  string      `json:"msg"`
+		Data AgentDetail `json:"data"`
+	})
+
+@server (
+	group: agent
+)
+service ops-api {
+	@doc "获取Agent列表"
+	@handler getAgentList
+	get /agent/list (AgentListReq) returns (AgentListResp)
+
+	@doc "获取Agent详情"
+	@handler getAgentById
+	get /agent/:id (IDReq) returns (AgentDetailResp)
+
+	@doc "创建Agent"
+	@handler createAgent
+	post /agent/create (AgentInfo) returns (BaseIDResp)
+
+	@doc "更新Agent"
+	@handler updateAgent
+	post /agent/update (AgentInfo) returns (BaseResp)
+
+	@doc "删除Agent"
+	@handler deleteAgent
+	post /agent/delete (IDsReq) returns (BaseResp)
+
+	@doc "选择Agent（供Discovery使用）"
+	@handler selectAgentForDiscovery
+	post /agent/select (AgentSelectionReq) returns (AgentSelectionResp)
+}
+

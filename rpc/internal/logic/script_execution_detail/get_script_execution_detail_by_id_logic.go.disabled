@@ -1,0 +1,58 @@
+package script_execution_detail
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetScriptExecutionDetailByIdLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetScriptExecutionDetailByIdLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetScriptExecutionDetailByIdLogic {
+	return &GetScriptExecutionDetailByIdLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetScriptExecutionDetailByIdLogic) GetScriptExecutionDetailById(in *ops.IDReq) (*ops.ScriptExecutionDetailInfo, error) {
+	result, err := l.svcCtx.DB.ScriptExecutionDetail.Get(l.ctx, in.Id)
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	return &ops.ScriptExecutionDetailInfo{
+		Id:          &result.ID,
+		CreatedAt:    pointy.GetPointer(result.CreatedAt.UnixMilli()),
+		UpdatedAt:    pointy.GetPointer(result.UpdatedAt.UnixMilli()),
+		Status:	pointy.GetPointer(uint32(result.Status)),
+		ExecutionId:	&result.ExecutionID,
+		CiId:	&result.CiID,
+		CiName:	&result.CiName,
+		CiIp:	&result.CiIP,
+		ExecStatus:	&result.ExecStatus,
+		StartedAt:	pointy.GetUnixMilliPointer(result.StartedAt.UnixMilli()),
+		CompletedAt:	pointy.GetUnixMilliPointer(result.CompletedAt.UnixMilli()),
+		DurationMs:	&result.DurationMs,
+		Output:	&result.Output,
+		ErrorOutput:	&result.ErrorOutput,
+		ExitCode:	pointy.GetPointer(int64(result.ExitCode)),
+		FullOutputPath:	&result.FullOutputPath,
+		TaskId:	&result.TaskID,
+		WorkerId:	&result.WorkerID,
+		ProxyId:	&result.ProxyID,
+		ErrorMessage:	&result.ErrorMessage,
+		RetryCount:	&result.RetryCount,
+	}, nil
+}
+

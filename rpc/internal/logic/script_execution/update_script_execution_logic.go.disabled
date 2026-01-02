@@ -1,0 +1,62 @@
+package script_execution
+
+import (
+	"context"
+
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+
+	"github.com/suyuan32/simple-admin-common/msg/errormsg"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type UpdateScriptExecutionLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewUpdateScriptExecutionLogic(ctx context.Context, svcCtx *svc.ServiceContext) *UpdateScriptExecutionLogic {
+	return &UpdateScriptExecutionLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *UpdateScriptExecutionLogic) UpdateScriptExecution(in *ops.ScriptExecutionInfo) (*ops.BaseResp, error) {
+	query := l.svcCtx.DB.ScriptExecution.UpdateOneID(*in.Id).
+		SetNotNilScriptID(in.ScriptId).
+		SetNotNilExecutionID(in.ExecutionId).
+		SetNotNilExecutorUserID(in.ExecutorUserId).
+		SetNotNilTriggerType(in.TriggerType).
+		SetNotNilTargetCiIds(in.TargetCiIds).
+		SetNotNilTargetCount(in.TargetCount).
+		SetNotNilParameters(in.Parameters).
+		SetNotNilRawParameters(in.RawParameters).
+		SetNotNilExecutionStatus(in.ExecutionStatus).
+		SetNotNilStartedAt(pointy.GetTimeMilliPointer(in.StartedAt)).
+		SetNotNilCompletedAt(pointy.GetTimeMilliPointer(in.CompletedAt)).
+		SetNotNilDurationMs(in.DurationMs).
+		SetNotNilSuccessCount(in.SuccessCount).
+		SetNotNilFailureCount(in.FailureCount).
+		SetNotNilTimeoutCount(in.TimeoutCount).
+		SetNotNilTaskID(in.TaskId).
+		SetNotNilErrorMessage(in.ErrorMessage).
+		SetNotNilExecutionLog(in.ExecutionLog)
+
+	if in.Status != nil {
+		query.SetNotNilStatus(pointy.GetPointer(uint8(*in.Status)))
+	}
+
+	err := query.Exec(l.ctx)
+
+	if err != nil {
+		return nil, dberrorhandler.DefaultEntError(l.Logger, err, in)
+	}
+
+	return &ops.BaseResp{Msg: errormsg.UpdateSuccess}, nil
+}

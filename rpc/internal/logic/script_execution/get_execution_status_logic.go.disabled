@@ -1,0 +1,67 @@
+package script_execution
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/coder-lulu/newbee-common/v2/utils/pointy"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
+	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
+	"github.com/zeromicro/go-zero/core/logx"
+)
+
+type GetExecutionStatusLogic struct {
+	ctx    context.Context
+	svcCtx *svc.ServiceContext
+	logx.Logger
+}
+
+func NewGetExecutionStatusLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetExecutionStatusLogic {
+	return &GetExecutionStatusLogic{
+		ctx:    ctx,
+		svcCtx: svcCtx,
+		Logger: logx.WithContext(ctx),
+	}
+}
+
+func (l *GetExecutionStatusLogic) GetExecutionStatus(in *ops.GetExecutionStatusReq) (*ops.ScriptExecutionInfo, error) {
+	// 1. 验证参数
+	if in.ExecutionId == nil || *in.ExecutionId == "" {
+		return nil, fmt.Errorf("execution_id is required")
+	}
+
+	// 2. 查询执行状态
+	execution, err := l.svcCtx.ScriptExecutor.GetExecutionStatus(l.ctx, *in.ExecutionId)
+	if err != nil {
+		l.Logger.Errorw("Failed to get execution status",
+			logx.Field("execution_id", *in.ExecutionId),
+			logx.Field("error", err.Error()))
+		return nil, err
+	}
+
+	// 3. 转换为proto消息
+	return &ops.ScriptExecutionInfo{
+		Id:              &execution.ID,
+		CreatedAt:       &execution.CreatedAt.Unix(),
+		UpdatedAt:       &execution.UpdatedAt.Unix(),
+		Status:          &execution.Status,
+		ScriptId:        &execution.ScriptID,
+		ExecutionId:     &execution.ExecutionID,
+		ExecutorUserId:  &execution.ExecutorUserID,
+		TriggerType:     &execution.TriggerType,
+		TargetCiIds:     execution.TargetCiIds,
+		TargetCount:     &execution.TargetCount,
+		Parameters:      &execution.Parameters,
+		RawParameters:   &execution.RawParameters,
+		ExecutionStatus: &execution.ExecutionStatus,
+		StartedAt:       pointy.GetPointer(execution.StartedAt.Unix()),
+		CompletedAt:     pointy.GetPointer(execution.CompletedAt.Unix()),
+		DurationMs:      &execution.DurationMs,
+		SuccessCount:    &execution.SuccessCount,
+		FailureCount:    &execution.FailureCount,
+		TimeoutCount:    &execution.TimeoutCount,
+		TaskId:          &execution.TaskID,
+		ErrorMessage:    &execution.ErrorMessage,
+		ExecutionLog:    &execution.ExecutionLog,
+	}, nil
+}

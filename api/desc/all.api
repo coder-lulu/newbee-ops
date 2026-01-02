@@ -1,0 +1,17 @@
+syntax = "v1"
+
+info (
+	title:   "OPS-Center API"
+	desc:    "OPS运维中心API网关"
+	version: "v1.0"
+)
+
+// 导入公共基础类型（必须最先导入）
+import "base.api"
+// 导入所有子API定义
+import "ops.api"
+import "proxy.api"
+import "proxygroup.api"
+import "agent.api"
+import "agentgroup.api"
+import "script.api"

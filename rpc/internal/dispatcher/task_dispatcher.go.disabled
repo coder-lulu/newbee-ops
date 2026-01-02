@@ -1,0 +1,247 @@
+package dispatcher
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/coder-lulu/newbee-ops-rpc/ent"
+	"github.com/coder-lulu/newbee-ops-rpc/internal/logic/worker"
+	pb "github.com/coder-lulu/newbee/newbee-proxy/proto"
+	"github.com/zeromicro/go-zero/core/logx"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// TaskDispatcher 任务分配器 - 负责将任务分配到Proxy执行
+type TaskDispatcher struct {
+	proxyClients map[string]*grpcClientWrapper // worker_id -> gRPC client wrapper
+	mu           sync.RWMutex
+	logger       logx.Logger
+}
+
+// grpcClientWrapper gRPC客户端包装器
+type grpcClientWrapper struct {
+	client      pb.ProxyServiceClient
+	conn        *grpc.ClientConn
+	workerID    string
+	grpcAddr    string
+	lastUsed    time.Time
+	failCount   int
+	maxFailures int
+}
+
+// NewTaskDispatcher 创建任务分配器
+func NewTaskDispatcher() *TaskDispatcher {
+	return &TaskDispatcher{
+		proxyClients: make(map[string]*grpcClientWrapper),
+		logger:       logx.WithContext(context.Background()),
+	}
+}
+
+// DispatchTask 分配任务到指定Proxy
+func (d *TaskDispatcher) DispatchTask(ctx context.Context, task *ent.Task, workerInfo *worker.WorkerInfo) error {
+	d.logger.Infow("Dispatching task to proxy",
+		logx.Field("task_id", task.TaskID),
+		logx.Field("worker_id", workerInfo.WorkerID),
+		logx.Field("executor", task.Executor))
+
+	// 1. 获取或创建gRPC客户端
+	client, err := d.getOrCreateClient(workerInfo)
+	if err != nil {
+		return fmt.Errorf("failed to get proxy client: %w", err)
+	}
+
+	// 2. 构建TaskAssignment
+	assignment, err := d.buildTaskAssignment(task)
+	if err != nil {
+		return fmt.Errorf("failed to build task assignment: %w", err)
+	}
+
+	// 3. 调用Proxy的SubmitTask接口
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := client.SubmitTask(ctx, assignment)
+	if err != nil {
+		d.markClientFailed(workerInfo.WorkerID)
+		return fmt.Errorf("failed to submit task to proxy: %w", err)
+	}
+
+	// 4. 验证响应
+	if len(resp.TaskResults) == 0 {
+		return fmt.Errorf("no task result in response")
+	}
+
+	d.logger.Infow("Task dispatched successfully",
+		logx.Field("task_id", task.TaskID),
+		logx.Field("worker_id", workerInfo.WorkerID))
+
+	return nil
+}
+
+// buildTaskAssignment 构建任务分配消息
+func (d *TaskDispatcher) buildTaskAssignment(task *ent.Task) (*pb.TaskAssignment, error) {
+	// 解析payload获取目标信息和凭证
+	var payload map[string]interface{}
+	if task.CommandContent != "" {
+		// 如果有command_content，构建简单的payload
+		payload = map[string]interface{}{
+			"command": task.CommandContent,
+		}
+	}
+
+	payloadJSON, _ := json.Marshal(payload)
+
+	// 确定任务类型
+	taskType := pb.TaskType_COMMAND_EXECUTE
+	switch task.Executor {
+	case "ssh":
+		taskType = pb.TaskType_COMMAND_EXECUTE
+	case "telnet":
+		taskType = pb.TaskType_COMMAND_EXECUTE
+	case "script":
+		taskType = pb.TaskType_SCRIPT_EXECUTE
+	}
+
+	// 构建认证信息（从task中提取，未来可能需要从凭证库读取）
+	credentials := &pb.Credentials{
+		Username:   "", // TODO: 从task或凭证库获取
+		Password:   "", // TODO: 从task或凭证库获取
+		AuthMethod: "password",
+	}
+
+	// 获取第一个目标CI（简化处理）
+	target := "127.0.0.1" // 默认值
+	if len(task.CiIds) > 0 {
+		target = task.CiIds[0] // TODO: 从CMDB查询CI的IP地址
+	}
+
+	assignment := &pb.TaskAssignment{
+		TaskId:         task.TaskID,
+		CommandId:      fmt.Sprintf("%d", task.ID),
+		TaskType:       taskType,
+		Target:         target,
+		TargetPort:     22, // TODO: 从CMDB或配置获取
+		Credentials:    credentials,
+		Payload:        string(payloadJSON),
+		TimeoutSeconds: int32(task.CommandTimeout),
+		Priority:       1, // TODO: 从task获取优先级
+		Options:        make(map[string]string),
+	}
+
+	return assignment, nil
+}
+
+// getOrCreateClient 获取或创建Proxy的gRPC客户端
+func (d *TaskDispatcher) getOrCreateClient(workerInfo *worker.WorkerInfo) (pb.ProxyServiceClient, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	wrapper, exists := d.proxyClients[workerInfo.WorkerID]
+	if exists {
+		// 检查连接健康状态
+		if wrapper.failCount < wrapper.maxFailures && time.Since(wrapper.lastUsed) < 5*time.Minute {
+			wrapper.lastUsed = time.Now()
+			return wrapper.client, nil
+		}
+		// 关闭旧连接
+		wrapper.conn.Close()
+		delete(d.proxyClients, workerInfo.WorkerID)
+	}
+
+	// 从endpoints获取gRPC地址
+	grpcAddr, exists := workerInfo.Endpoints["grpc"]
+	if !exists {
+		return nil, fmt.Errorf("worker %s has no grpc endpoint", workerInfo.WorkerID)
+	}
+
+	// 创建gRPC连接（带重试）
+	conn, err := d.dialWithRetry(grpcAddr, 3)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建客户端
+	client := pb.NewProxyServiceClient(conn)
+	wrapper = &grpcClientWrapper{
+		client:      client,
+		conn:        conn,
+		workerID:    workerInfo.WorkerID,
+		grpcAddr:    grpcAddr,
+		lastUsed:    time.Now(),
+		failCount:   0,
+		maxFailures: 3,
+	}
+	d.proxyClients[workerInfo.WorkerID] = wrapper
+
+	d.logger.Infow("Created new gRPC client for proxy",
+		logx.Field("worker_id", workerInfo.WorkerID),
+		logx.Field("grpc_addr", grpcAddr))
+
+	return client, nil
+}
+
+// dialWithRetry 带重试的gRPC连接建立
+func (d *TaskDispatcher) dialWithRetry(addr string, retries int) (*grpc.ClientConn, error) {
+	var conn *grpc.ClientConn
+	var err error
+
+	for i := 0; i < retries; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		conn, err = grpc.DialContext(ctx,
+			addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO: 生产环境需要TLS
+			grpc.WithBlock(),
+		)
+		cancel()
+
+		if err == nil {
+			return conn, nil
+		}
+
+		d.logger.Errorw("Failed to dial proxy, retrying",
+			logx.Field("addr", addr),
+			logx.Field("attempt", i+1),
+			logx.Field("error", err))
+
+		time.Sleep(time.Duration(i+1) * time.Second)
+	}
+
+	return nil, fmt.Errorf("failed to dial after %d retries: %w", retries, err)
+}
+
+// markClientFailed 标记客户端失败
+func (d *TaskDispatcher) markClientFailed(workerID string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if wrapper, exists := d.proxyClients[workerID]; exists {
+		wrapper.failCount++
+		d.logger.Errorw("Proxy client marked as failed",
+			logx.Field("worker_id", workerID),
+			logx.Field("fail_count", wrapper.failCount))
+
+		// 如果失败次数超过阈值，关闭连接
+		if wrapper.failCount >= wrapper.maxFailures {
+			wrapper.conn.Close()
+			delete(d.proxyClients, workerID)
+			d.logger.Errorw("Proxy client removed due to excessive failures",
+				logx.Field("worker_id", workerID))
+		}
+	}
+}
+
+// Close 关闭所有gRPC连接
+func (d *TaskDispatcher) Close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for workerID, wrapper := range d.proxyClients {
+		wrapper.conn.Close()
+		d.logger.Infow("Closed gRPC connection", logx.Field("worker_id", workerID))
+	}
+	d.proxyClients = make(map[string]*grpcClientWrapper)
+}

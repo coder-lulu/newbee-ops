@@ -1,0 +1,1908 @@
+syntax = "proto3";
+
+package ops;
+option go_package = "./ops";
+
+import "google/protobuf/struct.proto";
+
+//                                    任务状态枚举
+enum TaskStatus {
+  TASK_PENDING = 0;
+  TASK_RUNNING = 1;
+  TASK_COMPLETED = 2;
+  TASK_FAILED = 3;
+  TASK_TIMEOUT = 4;
+  TASK_CANCELLED = 5;
+}
+
+//                                    任务类型枚举
+enum TaskType {
+  TUNNEL_CREATE = 0;
+  TUNNEL_CLOSE = 1;
+  COMMAND_EXECUTE = 2;
+  HARDWARE_CONTROL = 3;
+  NETWORK_PROBE = 4;
+  FILE_TRANSFER = 5;
+  SCRIPT_EXECUTE = 6;
+}
+
+//                                     AccessProfile message
+message AccessProfileInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string ci_id = 5;
+  optional google.protobuf.Struct capabilities = 6;
+  optional google.protobuf.Struct ports = 7;
+  optional string credential_ref = 8;
+  optional string prefer_proxy = 9;
+  optional google.protobuf.Struct jump_chain = 10;
+  optional google.protobuf.Struct tags = 11;
+}
+
+message AccessProfileListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string ci_id = 6;
+  optional google.protobuf.Struct capabilities = 7;
+  optional google.protobuf.Struct ports = 8;
+  optional string credential_ref = 9;
+  optional string prefer_proxy = 10;
+  optional google.protobuf.Struct jump_chain = 11;
+  optional google.protobuf.Struct tags = 12;
+}
+
+message AccessProfileListResp {
+  uint64 total = 1;
+  repeated AccessProfileInfo data = 2;
+}
+
+//                                    Agent配置
+message AgentConfig {
+  int32 heartbeat_interval_seconds = 1;
+  map<string,string> plugin_configs = 2;
+  repeated string allowed_targets = 3;
+  bool debug_mode = 4;
+}
+
+//                                     AgentGroup message
+message AgentGroupInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string name = 5;
+  optional string description = 6;
+  optional string selection_strategy = 7;
+  optional int64 health_check_interval = 8;
+  optional bool auto_failover = 9;
+  optional int64 max_retry_count = 10;
+}
+
+//                                     Agent group info with members (extended)
+message AgentGroupInfoWithMembers {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional uint64 tenant_id = 5;
+  optional string name = 6;
+  optional string description = 7;
+  optional string selection_strategy = 8;
+  optional int64 health_check_interval = 9;
+  optional bool auto_failover = 10;
+  optional int64 max_retry_count = 11;
+  repeated AgentGroupMemberWithAgent members = 12;
+}
+
+message AgentGroupListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string name = 6;
+  optional string description = 7;
+  optional string selection_strategy = 8;
+  optional int64 health_check_interval = 9;
+  optional bool auto_failover = 10;
+  optional int64 max_retry_count = 11;
+}
+
+message AgentGroupListResp {
+  uint64 total = 1;
+  repeated AgentGroupInfo data = 2;
+}
+
+//                                     AgentGroupMember message
+message AgentGroupMemberInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional uint64 agent_id = 5;
+  optional uint64 agent_group_id = 6;
+  optional int64 priority = 7;
+  optional int64 weight = 8;
+  optional int64 joined_at = 9;
+}
+
+message AgentGroupMemberListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional uint64 agent_id = 6;
+  optional uint64 agent_group_id = 7;
+  optional int64 priority = 8;
+  optional int64 weight = 9;
+  optional int64 joined_at = 10;
+}
+
+message AgentGroupMemberListResp {
+  uint64 total = 1;
+  repeated AgentGroupMemberInfo data = 2;
+}
+
+//                                     Agent group member management request
+message AgentGroupMemberReq {
+  optional uint64 agent_group_id = 1;
+  repeated uint64 agent_ids = 2;
+  optional int64 priority = 3;
+  optional int64 weight = 4;
+}
+
+//                                     Agent group member with agent details
+message AgentGroupMemberWithAgent {
+  optional uint64 id = 1;
+  optional uint64 agent_id = 2;
+  optional uint64 agent_group_id = 3;
+  optional int64 priority = 4;
+  optional int64 weight = 5;
+  optional int64 joined_at = 6;
+  optional AgentInfo agent = 7;
+}
+
+//                                     Agent heartbeat request
+message AgentHeartbeatReq {
+  optional string agent_id = 1;
+  optional string agent_status = 2;
+  optional int64 active_sessions = 3;
+  optional double cpu_usage = 4;
+  optional double memory_usage = 5;
+}
+
+message AgentInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //                                     Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //                                     Agent名称
+  optional string name = 5;
+  //                                     Agent唯一标识（由Agent生成）
+  optional string agent_id = 6;
+  //                                     Agent主机地址或IP
+  optional string host = 7;
+  //                                     Agent服务端口
+  optional int64 port = 8;
+  //                                     API认证密钥
+  optional string api_key = 9;
+  //                                     描述信息
+  optional string description = 10;
+  //                                     Agent运行状态
+  optional string agent_status = 11;
+  //                                     最后心跳时间
+  optional int64 last_heartbeat = 12;
+  //                                     心跳间隔（秒）
+  optional int64 heartbeat_interval = 13;
+  //                                     最后在线时间
+  optional int64 last_online_at = 14;
+  //                                     支持的Provider类型列表 (JSON string)
+  optional string supported_providers = 15;
+  //                                     支持的协议能力 [ssh, telnet, rdp, ipmi, snmp] (JSON string)
+  optional string capabilities = 16;
+  //                                     最大并发任务数
+  optional int64 max_concurrent_tasks = 17;
+  //                                     标签列表，用于分类和筛选 (JSON string)
+  optional string tags = 18;
+  //                                     所属区域
+  optional string region = 19;
+  //                                     资源限制配置 (JSON string)
+  optional string resource_limits = 20;
+  //                                     本地IP地址
+  optional string local_ip = 21;
+  //                                     公网IP地址
+  optional string public_ip = 22;
+  //                                     管理的网段列表 (JSON string)
+  optional string network_segments = 23;
+  //                                     当前活跃会话数
+  optional int64 active_sessions = 24;
+  //                                     CPU使用率（百分比）
+  optional double cpu_usage = 25;
+  //                                     内存使用率（百分比）
+  optional double memory_usage = 26;
+  //                                     总请求次数
+  optional int64 total_requests = 27;
+  //                                     成功请求次数
+  optional int64 successful_requests = 28;
+  //                                     失败请求次数
+  optional int64 failed_requests = 29;
+  //                                     Agent版本号
+  optional string version = 30;
+  //                                     扩展元数据 (JSON string)
+  optional string metadata = 31;
+  //                                     最后错误信息
+  optional string last_error = 32;
+}
+
+message AgentListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string name = 6;
+  optional string agent_id = 7;
+  optional string host = 8;
+  optional int64 port = 9;
+  optional string api_key = 10;
+  optional string description = 11;
+  optional string agent_status = 12;
+  optional int64 last_heartbeat = 13;
+  optional int64 heartbeat_interval = 14;
+  optional int64 last_online_at = 15;
+  optional string supported_providers = 16;
+  optional string capabilities = 17;
+  optional int64 max_concurrent_tasks = 18;
+  optional string tags = 19;
+  optional string region = 20;
+  optional string resource_limits = 21;
+  optional string local_ip = 22;
+  optional string public_ip = 23;
+  optional string network_segments = 24;
+  optional int64 active_sessions = 25;
+  optional double cpu_usage = 26;
+  optional double memory_usage = 27;
+  optional int64 total_requests = 28;
+  optional int64 successful_requests = 29;
+  optional int64 failed_requests = 30;
+  optional string version = 31;
+  optional string metadata = 32;
+  optional string last_error = 33;
+}
+
+message AgentListResp {
+  uint64 total = 1;
+  repeated AgentInfo data = 2;
+}
+
+//                                    Agent -> OPS 消息
+message AgentMessage {
+  string agent_id = 1;
+  int64 timestamp = 2;
+  string message_id = 3;
+}
+
+//                                     Agent selection request for discovery
+message AgentSelectionReq {
+  optional string selection_mode = 1;
+  optional string agent_id = 2;
+  optional uint64 agent_group_id = 3;
+  optional string provider = 4;
+  optional string region = 5;
+  optional string network_segment = 6;
+}
+
+//                                     Agent selection response
+message AgentSelectionResp {
+  optional string agent_id = 1;
+  optional string host = 2;
+  optional int64 port = 3;
+  optional string msg = 4;
+}
+
+//                                     AuditEvent message
+message AuditEventInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string event_id = 5;
+  optional string type = 6;
+  optional string subject_user = 7;
+  optional string subject_ci = 8;
+  optional string subject_proxy = 9;
+  optional int64 occur_at = 10;
+  optional google.protobuf.Struct meta = 11;
+}
+
+message AuditEventListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string event_id = 6;
+  optional string type = 7;
+  optional string subject_user = 8;
+  optional string subject_ci = 9;
+  optional string subject_proxy = 10;
+  optional int64 occur_at = 11;
+  optional google.protobuf.Struct meta = 12;
+}
+
+message AuditEventListResp {
+  uint64 total = 1;
+  repeated AuditEventInfo data = 2;
+}
+
+message BaseIDInt32Resp {
+  int32 id = 1;
+  string msg = 2;
+}
+
+message BaseIDInt64Resp {
+  int64 id = 1;
+  string msg = 2;
+}
+
+message BaseIDResp {
+  uint64 id = 1;
+  string msg = 2;
+}
+
+message BaseIDStringResp {
+  string id = 1;
+  string msg = 2;
+}
+
+message BaseIDUint32Resp {
+  uint32 id = 1;
+  string msg = 2;
+}
+
+message BaseResp {
+  int32 code = 1;
+  string msg = 2;
+}
+
+message BaseUUIDResp {
+  string id = 1;
+  string msg = 2;
+}
+
+//        CancelExecutionReq 取消执行请求
+message CancelExecutionReq {
+  optional string execution_id = 1;
+}
+
+//                                    取消任务
+message CancelTaskRequest {
+  string agent_id = 1;
+  string task_id = 2;
+}
+
+message CancelTaskResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+//                                    配置更新
+message ConfigUpdate {
+  string config_version = 1;
+  map<string,string> configs = 2;
+  bool restart_required = 3;
+}
+
+//                                    连接报告
+message ConnectionReport {
+  string target = 1;
+  string protocol = 2;
+  bool connected = 3;
+  int64 connection_time_ms = 4;
+  string error_message = 5;
+}
+
+//                                     CredentialRef message
+message CredentialRefInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string provider = 5;
+  optional string ref = 6;
+  optional string scope = 7;
+  optional string created_by = 8;
+  optional google.protobuf.Struct tags = 9;
+}
+
+message CredentialRefListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string provider = 6;
+  optional string ref = 7;
+  optional string scope = 8;
+  optional string created_by = 9;
+  optional google.protobuf.Struct tags = 10;
+}
+
+message CredentialRefListResp {
+  uint64 total = 1;
+  repeated CredentialRefInfo data = 2;
+}
+
+//                                    认证信息
+message Credentials {
+  string username = 1;
+  string password = 2;
+  string private_key = 3;
+  string public_key = 4;
+  string auth_method = 5;
+  map<string,string> extra = 6;
+}
+
+//                                     base message
+message Empty {}
+
+//                                    错误报告
+message ErrorReport {
+  string error_code = 1;
+  string error_message = 2;
+  string component = 3;
+  string stack_trace = 4;
+  map<string,string> context = 5;
+}
+
+//        ExecuteScriptReq 执行脚本请求
+message ExecuteScriptReq {
+  optional uint64 script_id = 1;
+  optional uint64 executor_user_id = 2;
+  optional string trigger_type = 3;
+  repeated string target_ci_ids = 4;
+  optional string parameters = 5;
+}
+
+//        ExecuteScriptResp 执行脚本响应
+message ExecuteScriptResp {
+  optional string execution_id = 1;
+  optional string status = 2;
+  optional string message = 3;
+}
+
+//        GetExecutionDetailsReq 获取执行详情请求
+message GetExecutionDetailsReq {
+  optional string execution_id = 1;
+  optional uint64 page = 2;
+  optional uint64 page_size = 3;
+}
+
+//        GetExecutionDetailsResp 获取执行详情响应
+message GetExecutionDetailsResp {
+  optional uint64 total = 1;
+  repeated ScriptExecutionDetailInfo data = 2;
+}
+
+//        GetExecutionStatusReq 获取执行状态请求
+message GetExecutionStatusReq {
+  optional string execution_id = 1;
+}
+
+//                                    健康检查
+message HealthCheck {
+  string check_id = 1;
+  repeated string components = 2;
+}
+
+//                                    心跳数据
+message HeartbeatData {
+  string status = 1;
+  int32 active_sessions = 2;
+  float cpu_usage_percent = 3;
+  float memory_usage_mb = 4;
+  int64 uptime_seconds = 5;
+  map<string,string> plugin_status = 6;
+}
+
+//                                    心跳请求
+message HeartbeatRequest {
+  string agent_id = 1;
+  int64 timestamp = 2;
+  MetricsData metrics = 3;
+}
+
+//                                    心跳响应
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+  AgentConfig updated_config = 3;
+}
+
+message IDInt32Req {
+  int32 id = 1;
+}
+
+message IDInt64Req {
+  int64 id = 1;
+}
+
+message IDReq {
+  uint64 id = 1;
+}
+
+message IDStringReq {
+  string id = 1;
+}
+
+message IDUint32Req {
+  uint32 id = 1;
+}
+
+message IDsInt32Req {
+  repeated int32 ids = 1;
+}
+
+message IDsInt64Req {
+  repeated int64 ids = 1;
+}
+
+message IDsReq {
+  repeated uint64 ids = 1;
+}
+
+message IDsStringReq {
+  repeated string ids = 1;
+}
+
+message IDsUint32Req {
+  repeated uint32 ids = 1;
+}
+
+//                                    监控指标数据
+message MetricsData {
+  int64 total_requests = 1;
+  int64 successful_requests = 2;
+  int64 failed_requests = 3;
+  float average_response_time_ms = 4;
+  int32 concurrent_sessions = 5;
+  float throughput_mbps = 6;
+  map<string,float> protocol_metrics = 7;
+}
+
+//                                    监控指标请求
+message MetricsRequest {
+  string agent_id = 1;
+  MetricsData metrics = 2;
+}
+
+//                                    监控指标响应
+message MetricsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+//                                    网络信息
+message NetworkInfo {
+  string local_ip = 1;
+  string public_ip = 2;
+  repeated string network_segments = 3;
+  map<string,int32> network_latency = 4;
+}
+
+//                                    OPS -> Agent 消息
+message OpsMessage {
+  string message_id = 1;
+  int64 timestamp = 2;
+  int32 priority = 3;
+}
+
+message PageInfoReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+}
+
+//                               Pick worker from group request
+message PickWorkerFromGroupReq {
+  optional uint64 group_id = 1;
+  repeated string required_capabilities = 2;
+  optional string preferred_region = 3;
+  repeated string required_tags = 4;
+  optional string session_id = 5;
+}
+
+//                               Pick worker from group response
+message PickWorkerFromGroupResp {
+  optional string worker_id = 1;
+  optional string name = 2;
+  optional string ip = 3;
+  optional int32 port = 4;
+  optional string msg = 5;
+}
+
+//                                    插件命令
+message PluginCommand {
+  string plugin_name = 1;
+  string command = 2;
+  map<string,string> parameters = 3;
+}
+
+//                                    插件状态
+message PluginStatus {
+  string plugin_name = 1;
+  string status = 2;
+  string version = 3;
+  string error_message = 4;
+  map<string,string> config = 5;
+}
+
+message ProxyGroupInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Department ID | 部门 ID
+  optional uint64 department_id = 4;
+  //             Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 5;
+  //             Proxy分组名称
+  optional string name = 6;
+  //             描述信息
+  optional string description = 7;
+  //             Proxy选择策略
+  optional string selection_strategy = 8;
+  //             健康检查间隔（秒），10-3600秒
+  optional int64 health_check_interval = 9;
+  //             是否启用自动故障转移
+  optional bool auto_failover = 10;
+  //             Proxy失败时最大重试次数（0-10次）
+  optional int64 max_retry_count = 11;
+  //             最少健康Proxy数量，低于此值告警
+  optional int64 min_healthy_proxies = 12;
+  //             连接超时时间（秒），5-300秒
+  optional int64 connection_timeout = 13;
+  //             请求超时时间（秒），10-600秒
+  optional int64 request_timeout = 14;
+  //             总成员数（缓存字段）
+  optional int64 total_members = 15;
+  //             在线成员数（缓存字段）
+  optional int64 online_members = 16;
+  //             总权重（缓存字段，用于加权算法）
+  optional int64 total_weight = 17;
+}
+
+message ProxyGroupListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint64 department_id = 5;
+  optional uint32 status = 6;
+  optional string name = 7;
+  optional string description = 8;
+  optional string selection_strategy = 9;
+  optional int64 health_check_interval = 10;
+  optional bool auto_failover = 11;
+  optional int64 max_retry_count = 12;
+  optional int64 min_healthy_proxies = 13;
+  optional int64 connection_timeout = 14;
+  optional int64 request_timeout = 15;
+  optional int64 total_members = 16;
+  optional int64 online_members = 17;
+  optional int64 total_weight = 18;
+}
+
+message ProxyGroupListResp {
+  uint64 total = 1;
+  repeated ProxyGroupInfo data = 2;
+}
+
+message ProxyGroupMemberInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Department ID | 部门 ID
+  optional uint64 department_id = 4;
+  //             Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 5;
+  //             Proxy ID
+  optional uint64 proxy_id = 6;
+  //             Proxy分组ID
+  optional uint64 proxy_group_id = 7;
+  //             权重（1-1000），用于加权轮询策略
+  optional int64 weight = 8;
+  //             优先级（-100到100），数字越大优先级越高
+  optional int64 priority = 9;
+  //             加入分组的时间
+  optional int64 joined_at = 10;
+  //             最后被选中的时间（用于轮询算法）
+  optional int64 last_selected_at = 11;
+  //             被选中次数（统计字段）
+  optional int64 select_count = 12;
+  //             是否为备用节点（仅在主节点全部故障时使用）
+  optional bool is_backup = 13;
+  //             连续失败次数（用于自动摘除）
+  optional int64 consecutive_failures = 14;
+  //             最后失败时间
+  optional int64 last_failure_at = 15;
+}
+
+message ProxyGroupMemberListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint64 department_id = 5;
+  optional uint32 status = 6;
+  optional uint64 proxy_id = 7;
+  optional uint64 proxy_group_id = 8;
+  optional int64 weight = 9;
+  optional int64 priority = 10;
+  optional int64 joined_at = 11;
+  optional int64 last_selected_at = 12;
+  optional int64 select_count = 13;
+  optional bool is_backup = 14;
+  optional int64 consecutive_failures = 15;
+  optional int64 last_failure_at = 16;
+}
+
+message ProxyGroupMemberListResp {
+  uint64 total = 1;
+  repeated ProxyGroupMemberInfo data = 2;
+}
+
+message ProxyInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //             Proxy唯一标识（由Proxy生成，格式：proxy-{uuid}）
+  optional string proxy_id = 5;
+  //             Proxy友好名称
+  optional string name = 6;
+  //             Proxy IP地址
+  optional string ip = 7;
+  //             Proxy服务端口
+  optional int64 port = 8;
+  //             Proxy版本号
+  optional string version = 9;
+  //             地理区域（如：cn-beijing, us-west-1）
+  optional string region = 10;
+  //             可用区（如：az-1, az-2）
+  optional string zone = 11;
+  //             支持的协议能力 [ssh, telnet, rdp, ipmi, snmp]
+  optional string capabilities = 12;
+  //             标签列表，用于分类和筛选
+  optional string tags = 13;
+  //             服务端点映射 {"http":"http://...", "ws":"ws://..."}
+  optional string endpoints = 14;
+  //             Proxy运行状态
+  optional string proxy_status = 15;
+  //             最后心跳时间
+  optional int64 last_heartbeat = 16;
+  //             首次注册时间
+  optional int64 register_time = 17;
+  //             负载均衡权重（1-1000），越大分配越多
+  optional int64 weight = 18;
+  //             优先级，数字越大优先级越高
+  optional int64 priority = 19;
+  //             CPU使用率（0-100）
+  optional double cpu_usage = 20;
+  //             内存使用率（0-100）
+  optional double memory_usage = 21;
+  //             磁盘使用率（0-100）
+  optional double disk_usage = 22;
+  //             网络入流量（字节）
+  optional uint64 network_in = 23;
+  //             网络出流量（字节）
+  optional uint64 network_out = 24;
+  //             当前活跃会话数
+  optional int64 active_sessions = 25;
+  //             总请求次数
+  optional uint64 total_requests = 26;
+  //             成功请求次数
+  optional uint64 success_count = 27;
+  //             失败请求次数
+  optional uint64 failure_count = 28;
+  //             最大并发会话数
+  optional int64 max_sessions = 29;
+  //             连续健康检查失败次数
+  optional int64 health_check_failures = 30;
+  //             最后健康检查时间
+  optional int64 last_health_check = 31;
+  //             健康检查URL（为空则不主动探测）
+  optional string health_check_url = 32;
+  //             本地IP地址
+  optional string local_ip = 33;
+  //             公网IP地址
+  optional string public_ip = 34;
+  //             管理的网段列表 ["192.168.1.0/24", "10.0.0.0/8"]
+  optional string network_segments = 35;
+  //             扩展元数据（用户自定义字段）
+  optional string metadata = 36;
+  //             最后错误信息
+  optional string last_error = 37;
+}
+
+message ProxyListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string proxy_id = 6;
+  optional string name = 7;
+  optional string ip = 8;
+  optional int64 port = 9;
+  optional string version = 10;
+  optional string region = 11;
+  optional string zone = 12;
+  optional string capabilities = 13;
+  optional string tags = 14;
+  optional string endpoints = 15;
+  optional string proxy_status = 16;
+  optional int64 last_heartbeat = 17;
+  optional int64 register_time = 18;
+  optional int64 weight = 19;
+  optional int64 priority = 20;
+  optional double cpu_usage = 21;
+  optional double memory_usage = 22;
+  optional double disk_usage = 23;
+  optional uint64 network_in = 24;
+  optional uint64 network_out = 25;
+  optional int64 active_sessions = 26;
+  optional uint64 total_requests = 27;
+  optional uint64 success_count = 28;
+  optional uint64 failure_count = 29;
+  optional int64 max_sessions = 30;
+  optional int64 health_check_failures = 31;
+  optional int64 last_health_check = 32;
+  optional string health_check_url = 33;
+  optional string local_ip = 34;
+  optional string public_ip = 35;
+  optional string network_segments = 36;
+  optional string metadata = 37;
+  optional string last_error = 38;
+}
+
+message ProxyListResp {
+  uint64 total = 1;
+  repeated ProxyInfo data = 2;
+}
+
+message ProxyMetricsInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Proxy唯一标识
+  optional string proxy_id = 4;
+  //             指标采集时间戳
+  optional int64 timestamp = 5;
+  //             CPU使用率（%）
+  optional double cpu_usage = 6;
+  //             内存使用率（%）
+  optional double memory_usage = 7;
+  //             磁盘使用率（%）
+  optional double disk_usage = 8;
+  //             网络入流量增量（字节）
+  optional uint64 network_in_delta = 9;
+  //             网络出流量增量（字节）
+  optional uint64 network_out_delta = 10;
+  //             活跃会话数（快照）
+  optional int64 active_sessions = 11;
+  //             请求数增量
+  optional uint64 request_count_delta = 12;
+  //             成功数增量
+  optional uint64 success_count_delta = 13;
+  //             失败数增量
+  optional uint64 failure_count_delta = 14;
+  //             平均延迟（毫秒）
+  optional double avg_latency_ms = 15;
+  //             Proxy状态快照
+  optional string proxy_status = 16;
+}
+
+message ProxyMetricsListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional string proxy_id = 5;
+  optional int64 timestamp = 6;
+  optional double cpu_usage = 7;
+  optional double memory_usage = 8;
+  optional double disk_usage = 9;
+  optional uint64 network_in_delta = 10;
+  optional uint64 network_out_delta = 11;
+  optional int64 active_sessions = 12;
+  optional uint64 request_count_delta = 13;
+  optional uint64 success_count_delta = 14;
+  optional uint64 failure_count_delta = 15;
+  optional double avg_latency_ms = 16;
+  optional string proxy_status = 17;
+}
+
+message ProxyMetricsListResp {
+  uint64 total = 1;
+  repeated ProxyMetricsInfo data = 2;
+}
+
+//                                    Agent注册请求
+message RegisterRequest {
+  string agent_id = 1;
+  string version = 2;
+  string region = 3;
+  repeated string capabilities = 4;
+  ResourceLimits resources = 5;
+  NetworkInfo network_info = 6;
+  map<string,string> metadata = 7;
+  string auth_token = 8;
+}
+
+//                                    Agent注册响应
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  string agent_token = 3;
+  AgentConfig config = 4;
+}
+
+//                                    资源限制
+message ResourceLimits {
+  int32 max_concurrent_sessions = 1;
+  int32 max_memory_mb = 2;
+  int32 max_cpu_percent = 3;
+  int32 session_timeout_seconds = 4;
+}
+
+message ScriptCategoryInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //             分类名称
+  optional string name = 5;
+  //             分类标识代码
+  optional string code = 6;
+  //             分类描述
+  optional string description = 7;
+  //             父分类ID（支持树形结构）
+  optional uint64 parent_id = 8;
+  //             排序顺序
+  optional uint32 sort_order = 9;
+  //             分类图标
+  optional string icon = 10;
+}
+
+message ScriptCategoryListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string name = 6;
+  optional string code = 7;
+  optional string description = 8;
+  optional uint64 parent_id = 9;
+  optional uint32 sort_order = 10;
+  optional string icon = 11;
+}
+
+message ScriptCategoryListResp {
+  uint64 total = 1;
+  repeated ScriptCategoryInfo data = 2;
+}
+
+message ScriptExecutionDetailInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //     Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //     执行记录ID
+  optional uint64 execution_id = 5;
+  //     CI ID
+  optional string ci_id = 6;
+  //     CI名称
+  optional string ci_name = 7;
+  //     CI IP地址
+  optional string ci_ip = 8;
+  //     执行状态：pending/running/success/failed/timeout/cancelled
+  optional string exec_status = 9;
+  //     开始时间
+  optional int64 started_at = 10;
+  //     完成时间
+  optional int64 completed_at = 11;
+  //     执行时长（毫秒）
+  optional uint64 duration_ms = 12;
+  //     标准输出（截断至10KB）
+  optional string output = 13;
+  //     错误输出
+  optional string error_output = 14;
+  //     退出代码
+  optional int64 exit_code = 15;
+  //     完整输出文件路径（S3/OSS）
+  optional string full_output_path = 16;
+  //     关联的Task ID
+  optional string task_id = 17;
+  //     执行的Worker ID
+  optional string worker_id = 18;
+  //     使用的Proxy ID
+  optional string proxy_id = 19;
+  //     错误信息
+  optional string error_message = 20;
+  //     重试次数
+  optional uint32 retry_count = 21;
+}
+
+message ScriptExecutionDetailListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional uint64 execution_id = 6;
+  optional string ci_id = 7;
+  optional string ci_name = 8;
+  optional string ci_ip = 9;
+  optional string exec_status = 10;
+  optional int64 started_at = 11;
+  optional int64 completed_at = 12;
+  optional uint64 duration_ms = 13;
+  optional string output = 14;
+  optional string error_output = 15;
+  optional int64 exit_code = 16;
+  optional string full_output_path = 17;
+  optional string task_id = 18;
+  optional string worker_id = 19;
+  optional string proxy_id = 20;
+  optional string error_message = 21;
+  optional uint32 retry_count = 22;
+}
+
+message ScriptExecutionDetailListResp {
+  uint64 total = 1;
+  repeated ScriptExecutionDetailInfo data = 2;
+}
+
+message ScriptExecutionInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //     Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //     脚本ID
+  optional uint64 script_id = 5;
+  //     执行ID（UUID）
+  optional string execution_id = 6;
+  //     执行用户ID
+  optional uint64 executor_user_id = 7;
+  //     触发类型：manual/schedule/event/api
+  optional string trigger_type = 8;
+  //     目标CI ID列表
+  repeated string target_ci_ids = 9;
+  //     目标数量
+  optional uint32 target_count = 10;
+  //     渲染后的参数（JSON）
+  optional string parameters = 11;
+  //     用户输入的原始参数（JSON）
+  optional string raw_parameters = 12;
+  //     执行状态：pending/running/success/partial_success/failed/timeout/cancelled
+  optional string execution_status = 13;
+  //     开始时间
+  optional int64 started_at = 14;
+  //     完成时间
+  optional int64 completed_at = 15;
+  //     执行时长（毫秒）
+  optional uint64 duration_ms = 16;
+  //     成功数量
+  optional uint32 success_count = 17;
+  //     失败数量
+  optional uint32 failure_count = 18;
+  //     超时数量
+  optional uint32 timeout_count = 19;
+  //     关联的Task ID
+  optional string task_id = 20;
+  //     错误信息
+  optional string error_message = 21;
+  //     执行日志摘要
+  optional string execution_log = 22;
+}
+
+message ScriptExecutionListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional uint64 script_id = 6;
+  optional string execution_id = 7;
+  optional uint64 executor_user_id = 8;
+  optional string trigger_type = 9;
+  repeated string target_ci_ids = 10;
+  optional uint32 target_count = 11;
+  optional string parameters = 12;
+  optional string raw_parameters = 13;
+  optional string execution_status = 14;
+  optional int64 started_at = 15;
+  optional int64 completed_at = 16;
+  optional uint64 duration_ms = 17;
+  optional uint32 success_count = 18;
+  optional uint32 failure_count = 19;
+  optional uint32 timeout_count = 20;
+  optional string task_id = 21;
+  optional string error_message = 22;
+  optional string execution_log = 23;
+}
+
+message ScriptExecutionListResp {
+  uint64 total = 1;
+  repeated ScriptExecutionInfo data = 2;
+}
+
+message ScriptInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //             脚本名称
+  optional string name = 5;
+  //             脚本唯一标识代码
+  optional string code = 6;
+  //             脚本描述
+  optional string description = 7;
+  //             分类ID
+  optional uint64 category_id = 8;
+  //             标签列表
+  optional string tags = 9;
+  //             脚本类型：shell, bash, python, perl, sql, javascript, http, snmp
+  optional string script_type = 10;
+  //             执行器类型：agent, ssh, telnet, rdp, http, snmp
+  optional string executor = 11;
+  //             脚本内容
+  optional string content = 12;
+  //             是否为模板脚本
+  optional bool is_template = 13;
+  //             模板引擎：go-template, jinja2
+  optional string template_engine = 14;
+  //             参数定义（JSON Schema格式）
+  optional string parameters = 15;
+  //             版本号
+  optional string version = 16;
+  //             基础版本ID（用于版本链）
+  optional uint64 base_version_id = 17;
+  //             是否为最新版本
+  optional bool is_latest = 18;
+  //             适用的CI类型列表：server, vm, container, network_device
+  optional string target_ci_types = 19;
+  //             适用的OS类型列表：linux, windows, aix, solaris
+  optional string target_os_types = 20;
+  //             CMDB目标选择器配置（JSON格式）
+  optional string target_selector = 21;
+  //             凭证引用（指向AccessProfile或凭证库）
+  optional string credential_ref = 22;
+  //             执行所需的能力列表：sudo, docker, kubectl
+  optional string required_capabilities = 23;
+  //             默认超时时间（秒）
+  optional uint32 default_timeout = 24;
+  //             默认工作目录
+  optional string default_workdir = 25;
+  //             默认环境变量
+  optional string default_env = 26;
+  //             执行前是否需要确认
+  optional bool require_confirmation = 27;
+  //             风险级别：low, medium, high, critical
+  optional string risk_level = 28;
+  //             是否支持调度
+  optional bool schedulable = 29;
+  //             默认调度表达式（Cron格式）
+  optional string default_schedule = 30;
+  //             总执行次数
+  optional uint64 execution_count = 31;
+  //             成功执行次数
+  optional uint64 success_count = 32;
+  //             失败执行次数
+  optional uint64 failure_count = 33;
+  //             最后执行时间（Unix时间戳）
+  optional int64 last_executed_at = 34;
+}
+
+message ScriptListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string name = 6;
+  optional string code = 7;
+  optional string description = 8;
+  optional uint64 category_id = 9;
+  optional string tags = 10;
+  optional string script_type = 11;
+  optional string executor = 12;
+  optional string content = 13;
+  optional bool is_template = 14;
+  optional string template_engine = 15;
+  optional string parameters = 16;
+  optional string version = 17;
+  optional uint64 base_version_id = 18;
+  optional bool is_latest = 19;
+  optional string target_ci_types = 20;
+  optional string target_os_types = 21;
+  optional string target_selector = 22;
+  optional string credential_ref = 23;
+  optional string required_capabilities = 24;
+  optional uint32 default_timeout = 25;
+  optional string default_workdir = 26;
+  optional string default_env = 27;
+  optional bool require_confirmation = 28;
+  optional string risk_level = 29;
+  optional bool schedulable = 30;
+  optional string default_schedule = 31;
+  optional uint64 execution_count = 32;
+  optional uint64 success_count = 33;
+  optional uint64 failure_count = 34;
+  optional int64 last_executed_at = 35;
+}
+
+message ScriptListResp {
+  uint64 total = 1;
+  repeated ScriptInfo data = 2;
+}
+
+message ScriptVersionInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //             脚本ID
+  optional uint64 script_id = 4;
+  //             版本号
+  optional string version = 5;
+  //             脚本内容快照
+  optional string content = 6;
+  //             参数定义快照（JSON Schema格式）
+  optional string parameters = 7;
+  //             脚本类型快照
+  optional string script_type = 8;
+  //             执行器类型快照
+  optional string executor = 9;
+  //             变更日志
+  optional string change_log = 10;
+  //             创建者用户ID
+  optional uint64 created_by = 11;
+  //             内容校验和（SHA256）
+  optional string checksum = 12;
+}
+
+message ScriptVersionListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint64 script_id = 5;
+  optional string version = 6;
+  optional string content = 7;
+  optional string parameters = 8;
+  optional string script_type = 9;
+  optional string executor = 10;
+  optional string change_log = 11;
+  optional uint64 created_by = 12;
+  optional string checksum = 13;
+}
+
+message ScriptVersionListResp {
+  uint64 total = 1;
+  repeated ScriptVersionInfo data = 2;
+}
+
+//                               Session message
+message SessionInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string session_id = 5;
+  optional string user_id = 6;
+  optional string ci_id = 7;
+  optional string protocol = 8;
+  optional string proxy_id = 9;
+  optional string endpoint = 10;
+  optional string status_str = 11;
+  optional int64 expires_at = 12;
+  optional int64 closed_at = 13;
+  optional google.protobuf.Struct tags = 14;
+  //                    Phase 3: Worker绑定字段
+  optional string worker_id = 15;
+  optional string worker_ip = 16;
+  optional int32 worker_port = 17;
+}
+
+message SessionListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string session_id = 6;
+  optional string user_id = 7;
+  optional string ci_id = 8;
+  optional string protocol = 9;
+  optional string proxy_id = 10;
+  optional string endpoint = 11;
+  optional string status_str = 12;
+  optional int64 expires_at = 13;
+  optional int64 closed_at = 14;
+  optional google.protobuf.Struct tags = 15;
+}
+
+message SessionListResp {
+  uint64 total = 1;
+  repeated SessionInfo data = 2;
+}
+
+//                                     Session specific types
+message SessionSIDReq {
+  string session_id = 1;
+}
+
+//                                    关闭命令
+message ShutdownCommand {
+  string reason = 1;
+  int32 grace_period_seconds = 2;
+  bool force_shutdown = 3;
+}
+
+//                                    任务分配
+message TaskAssignment {
+  string task_id = 1;
+  string command_id = 2;
+  TaskType task_type = 3;
+  string target = 4;
+  int32 target_port = 5;
+  Credentials credentials = 6;
+  string payload = 7;
+  int32 timeout_seconds = 8;
+  int32 priority = 9;
+  map<string,string> options = 10;
+}
+
+//                                     Task specific types
+message TaskIdReq {
+  string task_id = 1;
+}
+
+//                               Task message
+message TaskInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  //                               Status 1: normal 2: ban | 状态 1 正常 2 禁用
+  optional uint32 status = 4;
+  //                               任务ID
+  optional string task_id = 5;
+  //                               任务名称
+  optional string name = 6;
+  //                               创建人ID
+  optional string creator_id = 7;
+  //                               目标CI列表
+  optional google.protobuf.Struct ci_ids = 8;
+  //                               执行器: agent|ssh|telnet
+  optional string executor = 9;
+  //                               命令/脚本内容
+  optional string command_content = 10;
+  //                               超时(秒)
+  optional int64 command_timeout = 11;
+  //                               工作目录
+  optional string command_workdir = 12;
+  //                               环境变量
+  optional google.protobuf.Struct command_env = 13;
+  //                               pending|running|success|failed
+  optional string status_str = 14;
+  //                               输出结果(截断/采样)
+  optional string result_output = 15;
+  //                               错误信息
+  optional string error_msg = 16;
+  //                               退出码
+  optional int64 exit_code = 17;
+  //                               远端任务ID(nb-agent)
+  optional string remote_task_id = 18;
+  //                               开始时间(Unix秒)
+  optional int64 start_time = 19;
+  //                               结束时间(Unix秒)
+  optional int64 end_time = 20;
+  //                               标签/扩展
+  optional google.protobuf.Struct tags = 21;
+}
+
+message TaskListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string task_id = 6;
+  optional string name = 7;
+  optional string creator_id = 8;
+  optional google.protobuf.Struct ci_ids = 9;
+  optional string executor = 10;
+  optional string command_content = 11;
+  optional int64 command_timeout = 12;
+  optional string command_workdir = 13;
+  optional google.protobuf.Struct command_env = 14;
+  optional string status_str = 15;
+  optional string result_output = 16;
+  optional string error_msg = 17;
+  optional int64 exit_code = 18;
+  optional string remote_task_id = 19;
+  optional int64 start_time = 20;
+  optional int64 end_time = 21;
+  optional google.protobuf.Struct tags = 22;
+}
+
+message TaskListResp {
+  uint64 total = 1;
+  repeated TaskInfo data = 2;
+}
+
+//                                    任务结果
+message TaskResult {
+  string task_id = 1;
+  string command_id = 2;
+  TaskStatus status = 3;
+  string result_data = 4;
+  string error_message = 5;
+  int64 execution_time_ms = 6;
+  map<string,string> metadata = 7;
+}
+
+//                                     Task result from Proxy (Phase 2)
+message TaskResultReq {
+  string task_id = 1;
+  string status = 2;
+  optional string result_data = 3;
+  optional string error_message = 4;
+  optional int64 execution_time_ms = 5;
+  optional int64 end_time = 6;
+}
+
+//                                    任务状态请求
+message TaskStatusRequest {
+  string agent_id = 1;
+  repeated string task_ids = 2;
+}
+
+//                                    任务状态响应
+message TaskStatusResponse {
+  repeated TaskResult task_results = 1;
+}
+
+//                                    隧道请求
+message TunnelRequest {
+  string tunnel_id = 1;
+  string protocol = 2;
+  string target_host = 3;
+  int32 target_port = 4;
+  Credentials credentials = 5;
+  string session_id = 6;
+  map<string,string> options = 7;
+}
+
+message UUIDReq {
+  string id = 1;
+}
+
+message UUIDsReq {
+  repeated string ids = 1;
+}
+
+//          ValidateParametersReq 参数验证请求
+message ValidateParametersReq {
+  optional uint64 script_id = 1;
+  optional string schema_json = 2;
+  string parameters_json = 3;
+}
+
+//          ValidateParametersResp 参数验证响应
+message ValidateParametersResp {
+  bool valid = 1;
+  repeated string errors = 2;
+  optional string message = 3;
+}
+
+//                               WorkerGroup message
+message WorkerGroupInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string name = 5;
+  optional string description = 6;
+  optional string selection_strategy = 7;
+  optional int32 health_check_interval = 8;
+  optional bool auto_failover = 9;
+  optional int32 max_retry_count = 10;
+  optional int32 min_healthy_workers = 11;
+  optional int32 total_members = 12;
+  optional int32 online_members = 13;
+  optional int32 total_weight = 14;
+}
+
+//                               WorkerGroup info with members (extended)
+message WorkerGroupInfoWithMembers {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional string name = 5;
+  optional string description = 6;
+  optional string selection_strategy = 7;
+  optional int32 health_check_interval = 8;
+  optional bool auto_failover = 9;
+  optional int32 max_retry_count = 10;
+  optional int32 min_healthy_workers = 11;
+  repeated WorkerGroupMemberWithWorker members = 12;
+  optional WorkerGroupStats stats = 13;
+}
+
+message WorkerGroupListReq {
+  uint64 page = 1;
+  uint64 page_size = 2;
+  optional int64 created_at = 3;
+  optional int64 updated_at = 4;
+  optional uint32 status = 5;
+  optional string name = 6;
+  optional string selection_strategy = 7;
+}
+
+message WorkerGroupListResp {
+  uint64 total = 1;
+  repeated WorkerGroupInfo data = 2;
+}
+
+//                               WorkerGroupMember message
+message WorkerGroupMemberInfo {
+  optional uint64 id = 1;
+  optional int64 created_at = 2;
+  optional int64 updated_at = 3;
+  optional uint32 status = 4;
+  optional uint64 worker_id = 5;
+  optional uint64 worker_group_id = 6;
+  optional int32 weight = 7;
+  optional int32 priority = 8;
+  optional int64 joined_at = 9;
+  optional bool is_backup = 10;
+  optional int32 select_count = 11;
+}
+
+//                               WorkerGroup member management request
+message WorkerGroupMemberReq {
+  optional uint64 worker_group_id = 1;
+  repeated uint64 worker_ids = 2;
+  optional int32 priority = 3;
+  optional int32 weight = 4;
+}
+
+//                               WorkerGroup member with worker details
+message WorkerGroupMemberWithWorker {
+  optional uint64 id = 1;
+  optional uint64 worker_id = 2;
+  optional uint64 worker_group_id = 3;
+  optional int32 weight = 4;
+  optional int32 priority = 5;
+  optional int64 joined_at = 6;
+  optional bool is_backup = 7;
+  optional int32 select_count = 8;
+  optional WorkerInfo worker_info = 9;
+}
+
+//                               WorkerGroup statistics
+message WorkerGroupStats {
+  optional int32 total_members = 1;
+  optional int32 online_members = 2;
+  optional int32 degraded_members = 3;
+  optional int32 offline_members = 4;
+  optional int32 total_weight = 5;
+  optional double avg_cpu_usage = 6;
+  optional double avg_memory_usage = 7;
+  optional int32 total_sessions = 8;
+}
+
+//                               Worker info for member response
+message WorkerInfo {
+  optional uint64 id = 1;
+  optional string worker_id = 2;
+  optional string name = 3;
+  optional string ip = 4;
+  optional int32 port = 5;
+  optional string worker_status = 6;
+  optional int32 active_sessions = 7;
+  optional double cpu_usage = 8;
+  optional double memory_usage = 9;
+  optional int64 last_heartbeat = 10;
+}
+
+service Ops {
+  //                              group: accessprofile
+  rpc createAccessProfile(AccessProfileInfo) returns (BaseIDResp);
+  //                              group: accessprofile
+  rpc updateAccessProfile(AccessProfileInfo) returns (BaseResp);
+  //                              group: accessprofile
+  rpc getAccessProfileList(AccessProfileListReq) returns (AccessProfileListResp);
+  //                              group: accessprofile
+  rpc getAccessProfileById(IDReq) returns (AccessProfileInfo);
+  //                              group: accessprofile
+  rpc deleteAccessProfile(IDsReq) returns (BaseResp);
+  //                              Agent management
+  //                              group: agent
+  rpc createAgent(AgentInfo) returns (BaseIDResp);
+  //                              group: agent
+  rpc updateAgent(AgentInfo) returns (BaseResp);
+  //                              group: agent
+  rpc getAgentList(AgentListReq) returns (AgentListResp);
+  //                              group: agent
+  rpc getAgentById(IDReq) returns (AgentInfo);
+  //                              group: agent
+  rpc deleteAgent(IDsReq) returns (BaseResp);
+  //                              group: agent
+  rpc updateAgentHeartbeat(AgentHeartbeatReq) returns (BaseResp);
+  //                              group: agent
+  rpc selectAgentForDiscovery(AgentSelectionReq) returns (AgentSelectionResp);
+  //                              AgentGroup management
+  //                              group: agentgroup
+  rpc createAgentGroup(AgentGroupInfo) returns (BaseIDResp);
+  //                              group: agentgroup
+  rpc updateAgentGroup(AgentGroupInfo) returns (BaseResp);
+  //                              group: agentgroup
+  rpc getAgentGroupList(AgentGroupListReq) returns (AgentGroupListResp);
+  //                              group: agentgroup
+  rpc getAgentGroupById(IDReq) returns (AgentGroupInfo);
+  //                              group: agentgroup
+  rpc deleteAgentGroup(IDsReq) returns (BaseResp);
+  //                              AgentGroupMember management
+  //                              group: agentgroupmember
+  rpc createAgentGroupMember(AgentGroupMemberInfo) returns (BaseIDResp);
+  //                              group: agentgroupmember
+  rpc updateAgentGroupMember(AgentGroupMemberInfo) returns (BaseResp);
+  //                              group: agentgroupmember
+  rpc getAgentGroupMemberList(AgentGroupMemberListReq) returns (AgentGroupMemberListResp);
+  //                              group: agentgroupmember
+  rpc getAgentGroupMemberById(IDReq) returns (AgentGroupMemberInfo);
+  //                              group: agentgroupmember
+  rpc deleteAgentGroupMember(IDsReq) returns (BaseResp);
+  //                              group: agentgroupmember
+  rpc addAgentsToGroup(AgentGroupMemberReq) returns (BaseResp);
+  //                              group: agentgroupmember
+  rpc removeAgentsFromGroup(AgentGroupMemberReq) returns (BaseResp);
+  //                              group: agentgroupmember
+  rpc getAgentGroupMembers(IDReq) returns (AgentGroupInfoWithMembers);
+  //                              group: auditevent
+  rpc createAuditEvent(AuditEventInfo) returns (BaseIDResp);
+  //                              group: auditevent
+  rpc updateAuditEvent(AuditEventInfo) returns (BaseResp);
+  //                              group: auditevent
+  rpc getAuditEventList(AuditEventListReq) returns (AuditEventListResp);
+  //                              group: auditevent
+  rpc getAuditEventById(IDReq) returns (AuditEventInfo);
+  //                              group: auditevent
+  rpc deleteAuditEvent(IDsReq) returns (BaseResp);
+  //                              group: credentialref
+  rpc createCredentialRef(CredentialRefInfo) returns (BaseIDResp);
+  //                              group: credentialref
+  rpc updateCredentialRef(CredentialRefInfo) returns (BaseResp);
+  //                              group: credentialref
+  rpc getCredentialRefList(CredentialRefListReq) returns (CredentialRefListResp);
+  //                              group: credentialref
+  rpc getCredentialRefById(IDReq) returns (CredentialRefInfo);
+  //                              group: credentialref
+  rpc deleteCredentialRef(IDsReq) returns (BaseResp);
+  //                              group: session
+  rpc createSession(SessionInfo) returns (BaseIDResp);
+  //                              group: session
+  rpc updateSession(SessionInfo) returns (BaseResp);
+  //                              group: session
+  rpc getSessionList(SessionListReq) returns (SessionListResp);
+  //                              group: session
+  rpc getSessionById(IDReq) returns (SessionInfo);
+  //                              group: session
+  rpc deleteSession(IDsReq) returns (BaseResp);
+  //                              group: session
+  rpc getSessionBySessionId(SessionSIDReq) returns (SessionInfo);
+  //                              group: task
+  rpc createTask(TaskInfo) returns (BaseIDResp);
+  //                              group: task
+  rpc updateTask(TaskInfo) returns (BaseResp);
+  //                              group: task
+  rpc getTaskList(TaskListReq) returns (TaskListResp);
+  //                              group: task
+  rpc getTaskById(IDReq) returns (TaskInfo);
+  //                              group: task
+  rpc deleteTask(IDsReq) returns (BaseResp);
+  //                              group: task
+  rpc getTaskByTaskId(TaskIdReq) returns (TaskInfo);
+  //                              group: workergroup
+  rpc createWorkerGroup(WorkerGroupInfo) returns (BaseIDResp);
+  //                              group: workergroup
+  rpc updateWorkerGroup(WorkerGroupInfo) returns (BaseResp);
+  //                              group: workergroup
+  rpc getWorkerGroupList(WorkerGroupListReq) returns (WorkerGroupListResp);
+  //                              group: workergroup
+  rpc getWorkerGroupById(IDReq) returns (WorkerGroupInfo);
+  //                              group: workergroup
+  rpc deleteWorkerGroup(IDsReq) returns (BaseResp);
+  //                              group: workergroup
+  rpc addWorkersToGroup(WorkerGroupMemberReq) returns (BaseResp);
+  //                              group: workergroup
+  rpc removeWorkersFromGroup(WorkerGroupMemberReq) returns (BaseResp);
+  //                              group: workergroup
+  rpc getWorkerGroupMembers(IDReq) returns (WorkerGroupInfoWithMembers);
+  //                              group: workergroup
+  rpc updateWorkerGroupMemberWeight(WorkerGroupMemberInfo) returns (BaseResp);
+  //                              group: workergroup
+  rpc pickWorkerFromGroup(PickWorkerFromGroupReq) returns (PickWorkerFromGroupResp);
+  //                               group: accessprofile
+  //                               Agent management
+  //                               group: agent
+  //                               AgentGroup management
+  //                               group: agentgroup
+  //                               AgentGroupMember management
+  //                               group: base
+  rpc initDatabase(Empty) returns (BaseResp);
+  //                                group: accessprofile
+  //                                Agent management
+  //                                group: agent
+  //                                AgentGroup management
+  //                                group: agentgroup
+  //                                AgentGroupMember management
+  //                                 group: accessprofile
+  //                                 Agent management
+  //                                 group: agent
+  //                                 AgentGroup management
+  //                                 group: agentgroup
+  //                                 AgentGroupMember management
+  //                                  group: accessprofile
+  //                                  Agent management
+  //                                  group: agent
+  //                                  AgentGroup management
+  //                                  group: agentgroup
+  //                                  AgentGroupMember management
+  //                                   group: accessprofile
+  //                                   Agent management
+  //                                   group: agent
+  //                                   AgentGroup management
+  //                                   group: agentgroup
+  //                                   AgentGroupMember management
+  //                                    group: accessprofile
+  //                                    Agent management
+  //                                    group: agent
+  //                                    AgentGroup management
+  //                                    group: agentgroup
+  //                                    AgentGroupMember management
+  //                                     group: accessprofile
+  //                                     Agent management
+  //                                     group: agent
+  //                                     AgentGroup management
+  //                                     group: agentgroup
+  //                                     AgentGroupMember management
+  //                                     group: task
+  rpc reportTaskResult(TaskResultReq) returns (BaseResp);
+  //                   Proxy management
+  //                   group: proxy
+  rpc createProxy(ProxyInfo) returns (BaseIDResp);
+  //                   group: proxy
+  rpc updateProxy(ProxyInfo) returns (BaseResp);
+  //                   group: proxy
+  rpc getProxyList(ProxyListReq) returns (ProxyListResp);
+  //                   group: proxy
+  rpc getProxyById(IDReq) returns (ProxyInfo);
+  //                   group: proxy
+  rpc deleteProxy(IDsReq) returns (BaseResp);
+  //                   ProxyGroup management
+  //                   group: proxy_group
+  rpc createProxyGroup(ProxyGroupInfo) returns (BaseIDResp);
+  //                   group: proxy_group
+  rpc updateProxyGroup(ProxyGroupInfo) returns (BaseResp);
+  //                   group: proxy_group
+  rpc getProxyGroupList(ProxyGroupListReq) returns (ProxyGroupListResp);
+  //                   group: proxy_group
+  rpc getProxyGroupById(IDReq) returns (ProxyGroupInfo);
+  //                   group: proxy_group
+  rpc deleteProxyGroup(IDsReq) returns (BaseResp);
+  //                   ProxyGroupMember management
+  //                   group: proxy_group_member
+  rpc createProxyGroupMember(ProxyGroupMemberInfo) returns (BaseIDResp);
+  //                   group: proxy_group_member
+  rpc updateProxyGroupMember(ProxyGroupMemberInfo) returns (BaseResp);
+  //                   group: proxy_group_member
+  rpc getProxyGroupMemberList(ProxyGroupMemberListReq) returns (ProxyGroupMemberListResp);
+  //                   group: proxy_group_member
+  rpc getProxyGroupMemberById(IDReq) returns (ProxyGroupMemberInfo);
+  //                   group: proxy_group_member
+  rpc deleteProxyGroupMember(IDsReq) returns (BaseResp);
+  //                   ProxyMetrics management
+  //                   group: proxy_metrics
+  rpc createProxyMetrics(ProxyMetricsInfo) returns (BaseIDResp);
+  //                   group: proxy_metrics
+  rpc updateProxyMetrics(ProxyMetricsInfo) returns (BaseResp);
+  //                   group: proxy_metrics
+  rpc getProxyMetricsList(ProxyMetricsListReq) returns (ProxyMetricsListResp);
+  //                   group: proxy_metrics
+  rpc getProxyMetricsById(IDReq) returns (ProxyMetricsInfo);
+  //                   group: proxy_metrics
+  rpc deleteProxyMetrics(IDsReq) returns (BaseResp);
+  //                   Script management
+  //                   group: script
+  rpc createScript(ScriptInfo) returns (BaseIDResp);
+  //                   group: script
+  rpc updateScript(ScriptInfo) returns (BaseResp);
+  //                   group: script
+  rpc getScriptList(ScriptListReq) returns (ScriptListResp);
+  //                   group: script
+  rpc getScriptById(IDReq) returns (ScriptInfo);
+  //                   group: script
+  rpc deleteScript(IDsReq) returns (BaseResp);
+  //                   group: script
+  rpc validateParameters(ValidateParametersReq) returns (ValidateParametersResp);
+  //                   ScriptCategory management
+  //                   group: script_category
+  rpc createScriptCategory(ScriptCategoryInfo) returns (BaseIDResp);
+  //         Phase 3: Script execution methods
+  //         group: script_execution
+  rpc executeScript(ExecuteScriptReq) returns (ExecuteScriptResp);
+  //         group: script_execution
+  rpc getExecutionStatus(GetExecutionStatusReq) returns (ScriptExecutionInfo);
+  //         group: script_execution
+  rpc getExecutionDetails(GetExecutionDetailsReq) returns (GetExecutionDetailsResp);
+  //         group: script_execution
+  rpc cancelExecution(CancelExecutionReq) returns (BaseResp);
+  //                   group: script_category
+  rpc updateScriptCategory(ScriptCategoryInfo) returns (BaseResp);
+  //                   group: script_category
+  rpc getScriptCategoryList(ScriptCategoryListReq) returns (ScriptCategoryListResp);
+  //                   group: script_category
+  rpc getScriptCategoryById(IDReq) returns (ScriptCategoryInfo);
+  //                   group: script_category
+  rpc deleteScriptCategory(IDsReq) returns (BaseResp);
+  //                   ScriptVersion management
+  //                   group: script_version
+  rpc createScriptVersion(ScriptVersionInfo) returns (BaseIDResp);
+  //                   group: script_version
+  rpc updateScriptVersion(ScriptVersionInfo) returns (BaseResp);
+  //                   group: script_version
+  rpc getScriptVersionList(ScriptVersionListReq) returns (ScriptVersionListResp);
+  //                   group: script_version
+  rpc getScriptVersionById(IDReq) returns (ScriptVersionInfo);
+  //                   group: script_version
+  rpc deleteScriptVersion(IDsReq) returns (BaseResp);
+  //         ScriptExecution management
+  //         group: script_execution
+  rpc createScriptExecution(ScriptExecutionInfo) returns (BaseIDResp);
+  //         group: script_execution
+  rpc updateScriptExecution(ScriptExecutionInfo) returns (BaseResp);
+  //         group: script_execution
+  rpc getScriptExecutionList(ScriptExecutionListReq) returns (ScriptExecutionListResp);
+  //         group: script_execution
+  rpc getScriptExecutionById(IDReq) returns (ScriptExecutionInfo);
+  //         group: script_execution
+  rpc deleteScriptExecution(IDsReq) returns (BaseResp);
+  //         ScriptExecutionDetail management
+  //         group: script_execution_detail
+  rpc createScriptExecutionDetail(ScriptExecutionDetailInfo) returns (BaseIDResp);
+  //         group: script_execution_detail
+  rpc updateScriptExecutionDetail(ScriptExecutionDetailInfo) returns (BaseResp);
+  //         group: script_execution_detail
+  rpc getScriptExecutionDetailList(ScriptExecutionDetailListReq) returns (ScriptExecutionDetailListResp);
+  //         group: script_execution_detail
+  rpc getScriptExecutionDetailById(IDReq) returns (ScriptExecutionDetailInfo);
+  //         group: script_execution_detail
+  rpc deleteScriptExecutionDetail(IDsReq) returns (BaseResp);
+}
+

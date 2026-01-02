@@ -1,0 +1,191 @@
+syntax = "v1"
+
+info (
+	title:   "Proxy分组管理API"
+	desc:    "OPS-Center Proxy分组管理接口 - 将Proxy(代理)组织成逻辑分组，实现负载均衡和故障转移"
+	version: "v1.0"
+)
+
+type (
+	// ProxyGroup基础信息（用于列表展示）
+	ProxyGroupItem {
+		Id                  uint64 `json:"id"`
+		Name                string `json:"name"`
+		Description         string `json:"description,optional"`
+		SelectionStrategy   string `json:"selectionStrategy"` // round_robin, least_connections, weighted, random
+		HealthCheckInterval int    `json:"healthCheckInterval"` // 健康检查间隔(秒)
+		AutoFailover        bool   `json:"autoFailover"` // 自动故障转移
+		MemberCount         int    `json:"memberCount"` // 成员数量
+		OnlineCount         int    `json:"onlineCount"` // 在线成员数
+		TotalWeight         int    `json:"totalWeight"` // 总权重
+		Status              uint32 `json:"status"` // 1=启用 2=禁用
+	}
+	// ProxyGroup详细信息
+	ProxyGroupDetail {
+		Id                  uint64              `json:"id"`
+		CreatedAt           int64               `json:"createdAt"`
+		UpdatedAt           int64               `json:"updatedAt"`
+		Status              uint32              `json:"status"` // 1=启用 2=禁用
+		Name                string              `json:"name"`
+		Description         string              `json:"description,optional"`
+		SelectionStrategy   string              `json:"selectionStrategy"`
+		HealthCheckInterval int                 `json:"healthCheckInterval"`
+		AutoFailover        bool                `json:"autoFailover"`
+		MaxRetryCount       int                 `json:"maxRetryCount"` // 最大重试次数
+		MinHealthyWorkers   int                 `json:"minHealthyWorkers"` // 最小健康节点数
+		Members             []ProxyGroupMember `json:"members,optional"` // 成员列表
+		Stats               ProxyGroupStats     `json:"stats,optional"` // 统计信息
+	}
+	// ProxyGroup成员信息
+	ProxyGroupMember {
+		Id             uint64  `json:"id"` // Proxy ID
+		ProxyID        string  `json:"proxyId"`
+		Name           string  `json:"name"`
+		IP             string  `json:"ip"`
+		Port           int     `json:"port"`
+		ProxyStatus    string  `json:"proxyStatus"` // online, degraded, offline
+		Weight         int     `json:"weight"` // 权重(组内)
+		Priority       int     `json:"priority"` // 优先级
+		CPUUsage       float64 `json:"cpuUsage"`
+		MemoryUsage    float64 `json:"memoryUsage"`
+		ActiveSessions int     `json:"activeSessions"`
+		LastHeartbeat  int64   `json:"lastHeartbeat"`
+	}
+	// ProxyGroup统计信息
+	ProxyGroupStats {
+		TotalMembers    int     `json:"totalMembers"`
+		OnlineMembers   int     `json:"onlineMembers"`
+		DegradedMembers int     `json:"degradedMembers"`
+		OfflineMembers  int     `json:"offlineMembers"`
+		TotalWeight     int     `json:"totalWeight"`
+		AvgCPUUsage     float64 `json:"avgCpuUsage"`
+		AvgMemoryUsage  float64 `json:"avgMemoryUsage"`
+		TotalSessions   int     `json:"totalSessions"`
+	}
+	// ProxyGroup列表请求
+	ProxyGroupListReq {
+		Page     uint64 `form:"page,default=1"`
+		PageSize uint64 `form:"pageSize,default=10"`
+		Status   uint32 `form:"status,optional"` // 1=启用 2=禁用
+		Name     string `form:"name,optional"` // 模糊搜索
+	}
+	// ProxyGroup列表数据（内层）
+	ProxyGroupListInfo {
+		Total uint64           `json:"total"`
+		Data  []ProxyGroupItem `json:"data"`
+	}
+	// ProxyGroup列表响应（外层，符合标准格式）
+	ProxyGroupListResp {
+		Code int                `json:"code"`
+		Msg  string             `json:"msg"`
+		Data ProxyGroupListInfo `json:"data"`
+	}
+	// ProxyGroup详情响应（符合标准格式）
+	ProxyGroupDetailResp {
+		Code int              `json:"code"`
+		Msg  string           `json:"msg"`
+		Data ProxyGroupDetail `json:"data"`
+	}
+	// 创建/更新ProxyGroup请求
+	ProxyGroupInfo {
+		Id                  uint64 `json:"id,optional"`
+		Name                string `json:"name"`
+		Description         string `json:"description,optional"`
+		SelectionStrategy   string `json:"selectionStrategy,default=least_connections"` // round_robin, least_connections, weighted, random
+		HealthCheckInterval int    `json:"healthCheckInterval,default=60"` // 秒
+		AutoFailover        bool   `json:"autoFailover,default=true"`
+		MaxRetryCount       int    `json:"maxRetryCount,default=3"`
+		MinHealthyWorkers   int    `json:"minHealthyWorkers,default=1"` // 最少要有几个健康节点
+	}
+	// 添加Proxy到分组请求
+	AddProxiesToGroupReq {
+		GroupId  uint64   `json:"groupId"`
+		ProxyIds []uint64 `json:"proxyIds"` // Proxy ID列表
+		Weight    int      `json:"weight,optional,default=100"` // 默认权重
+		Priority  int      `json:"priority,optional,default=0"` // 默认优先级
+	}
+	// 从分组移除Proxy请求
+	RemoveProxiesFromGroupReq {
+		GroupId  uint64   `json:"groupId"`
+		ProxyIds []uint64 `json:"proxyIds"`
+	}
+	// 批量更新分组成员请求（替换式更新，自动处理增删）
+	UpdateGroupMembersReq {
+		GroupId  uint64   `json:"groupId"`
+		ProxyIds []uint64 `json:"proxyIds"` // 新的完整成员列表
+		Weight    int      `json:"weight,optional,default=100"` // 新增成员的默认权重
+		Priority  int      `json:"priority,optional,default=0"` // 新增成员的默认优先级
+	}
+	// 批量更新分组成员统计数据
+	UpdateGroupMembersData {
+		AddedCount   uint32 `json:"addedCount"`   // 新增成员数
+		RemovedCount uint32 `json:"removedCount"` // 删除成员数
+		TotalCount   uint32 `json:"totalCount"`   // 最终成员数
+	}
+	// 批量更新分组成员响应（符合标准格式）
+	UpdateGroupMembersResp {
+		Code int                    `json:"code"`
+		Msg  string                 `json:"msg"`
+		Data UpdateGroupMembersData `json:"data"`
+	}
+	// 更新分组成员权重请求
+	UpdateGroupMemberWeightReq {
+		GroupId uint64 `json:"groupId"`
+		ProxyId uint64 `json:"proxyId"`
+		Weight   int    `json:"weight" validate:"min=1,max=1000"`
+	}
+	// 从分组选择Proxy请求
+	PickProxyFromGroupReq {
+		GroupId              uint64   `json:"groupId"`
+		RequiredCapabilities []string `json:"requiredCapabilities,optional"` // 必须的能力
+		PreferredRegion      string   `json:"preferredRegion,optional"` // 优先区域
+		RequiredTags         []string `json:"requiredTags,optional"` // 必须的标签
+		SessionID            string   `json:"sessionId,optional"` // 会话ID（一致性哈希）
+	}
+)
+
+@server (
+	group: proxygroup
+)
+service ops-api {
+	@doc "获取Proxy分组列表（需要JWT）"
+	@handler getProxyGroupList
+	get /proxygroup/list (ProxyGroupListReq) returns (ProxyGroupListResp)
+
+	@doc "获取Proxy分组详情（需要JWT）"
+	@handler getProxyGroupById
+	get /proxygroup/:id (IDPathReq) returns (ProxyGroupDetailResp)
+
+	@doc "创建Proxy分组（需要JWT）"
+	@handler createProxyGroup
+	post /proxygroup/create (ProxyGroupInfo) returns (BaseIDResp)
+
+	@doc "更新Proxy分组（需要JWT）"
+	@handler updateProxyGroup
+	post /proxygroup/update (ProxyGroupInfo) returns (BaseResp)
+
+	@doc "删除Proxy分组（需要JWT）"
+	@handler deleteProxyGroup
+	post /proxygroup/delete (IDsReq) returns (BaseResp)
+
+	@doc "添加Proxy到分组（需要JWT）"
+	@handler addProxiesToGroup
+	post /proxygroup/members/add (AddProxiesToGroupReq) returns (BaseResp)
+
+	@doc "从分组移除Proxy（需要JWT）"
+	@handler removeProxiesFromGroup
+	post /proxygroup/members/remove (RemoveProxiesFromGroupReq) returns (BaseResp)
+
+	@doc "批量更新分组成员（需要JWT）- 替换式更新，自动处理增删"
+	@handler updateGroupMembers
+	post /proxygroup/members/update (UpdateGroupMembersReq) returns (UpdateGroupMembersResp)
+
+	@doc "更新分组成员权重（需要JWT）"
+	@handler updateGroupMemberWeight
+	post /proxygroup/members/weight (UpdateGroupMemberWeightReq) returns (BaseResp)
+
+	@doc "从分组选择Proxy（需要JWT）"
+	@handler pickProxyFromGroup
+	post /proxygroup/pick (PickProxyFromGroupReq) returns (ProxyPickResp)
+}
+
