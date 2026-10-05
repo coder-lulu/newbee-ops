@@ -17,11 +17,11 @@ import (
 )
 
 type ServiceContext struct {
-	Config         config.Config
-	DB             *ent.Client
-	Redis          redis.UniversalClient
-	CoreRpc        coreclient.Core       // Core服务RPC客户端
-	WorkerManager  *worker.WorkerManager // Worker管理器
+	Config        config.Config
+	DB            *ent.Client
+	Redis         redis.UniversalClient
+	CoreRpc       coreclient.Core       // Core服务RPC客户端
+	WorkerManager *worker.WorkerManager // Worker管理器
 	// TODO: TaskDispatcher *dispatcher.TaskDispatcher // 任务分配器 (Phase 2) - 需要更新为Proxy架构
 
 	// Phase 2 - 模板引擎和参数验证
@@ -59,7 +59,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 
 	// 初始化Core RPC客户端 - 参考CMDB服务的实现模式
 	var coreRpc coreclient.Core
-	if c.CoreRpc.Endpoints != nil && len(c.CoreRpc.Endpoints) > 0 {
+	if len(c.CoreRpc.Endpoints) > 0 || c.CoreRpc.Target != "" || c.CoreRpc.Etcd.Key != "" {
 		// 创建RPC客户端，使用SystemContext拦截器支持系统级操作
 		rpcClient, err := zrpc.NewClient(c.CoreRpc, zrpc.WithUnaryClientInterceptor(hooks.SystemContextClientInterceptor()))
 		if err != nil {
@@ -74,12 +74,11 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	}
 
 	// 初始化Worker管理器
-	workerManager := worker.NewWorkerManager(db, worker.DefaultWorkerManagerConfig())
-	if err := workerManager.Start(); err != nil {
+	workerManager, err := newWorkerManager(db, c.WorkerManager.IsEnabled())
+	if err != nil {
 		logx.Errorf("Failed to start WorkerManager: %v", err)
 		panic("WorkerManager启动失败: " + err.Error())
 	}
-	logx.Info("✅ WorkerManager started successfully")
 
 	// TODO: 初始化任务分配器 (Phase 2) - 需要更新为Proxy架构
 	// taskDispatcher := dispatcher.NewTaskDispatcher()
@@ -112,4 +111,19 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		// TODO: Phase 3
 		// ScriptExecutor: scriptExecutor,
 	}
+}
+
+// Bootstrap mode retains a usable manager object while postponing recovery and
+// background tasks until the schema exists. Normal startup errors remain fatal.
+func newWorkerManager(db *ent.Client, enabled bool) (*worker.WorkerManager, error) {
+	manager := worker.NewWorkerManager(db, worker.DefaultWorkerManagerConfig())
+	if !enabled {
+		logx.Info("WorkerManager disabled for database initialization; enable and restart after initialization")
+		return manager, nil
+	}
+	if err := manager.Start(); err != nil {
+		manager.Stop()
+		return nil, err
+	}
+	return manager, nil
 }

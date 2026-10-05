@@ -3,6 +3,8 @@ package accessprofile
 import (
 	"context"
 
+	"github.com/coder-lulu/newbee-ops-rpc/internal/logic/base"
+
 	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
 	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
 
@@ -24,7 +26,5 @@ func NewInitDatabaseLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Init
 }
 
 func (l *InitDatabaseLogic) InitDatabase(in *ops.Empty) (*ops.BaseResp, error) {
-	// todo: add your logic here and delete this line
-
-	return &ops.BaseResp{}, nil
+	return base.NewInitDatabaseLogic(l.ctx, l.svcCtx).InitDatabase(in)
 }

@@ -3,6 +3,10 @@ Name: ops-rpc
 ListenOn: 0.0.0.0:9600
 Timeout: 30000
 
+# 首次空库部署保持关闭；调用 initDatabase 成功后设为 true 并重启 RPC。
+WorkerManager:
+  Enabled: false
+
 # gRPC服务器配置
 ServerOptions:
   # 启用拦截器
@@ -34,4 +38,3 @@ RedisConf:
   Host: 192.168.10.100:26739
   Pass: "123456"
   Db: 0
-
