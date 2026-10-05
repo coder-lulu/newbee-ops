@@ -1,3 +1,4 @@
+# Copy this file to ops.yaml and configure local values or environment variables.
 Name: ops-rpc
 ListenOn: 0.0.0.0:9600
 Timeout: 30000
@@ -20,16 +21,17 @@ Log:
 
 DatabaseConf:
   Type: mysql
-  Host: 192.168.26.130
-  Port: 3306
+  Host: 192.168.10.100
+  Port: 13306
   DBName: newbee
   Username: root
-  Password: "123456"
+  Password: "${OPS_CENTER_RPC_ETC_OPS_YAML_PASSWORD}"
   MaxOpenConn: 100
   SSLMode: disable
   CacheTime: 5
 
 RedisConf:
-  Host: 192.168.26.130:6380
+  Host: 192.168.10.100:26739
+  Pass: "123456"
   Db: 0
 

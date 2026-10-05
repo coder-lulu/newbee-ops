@@ -14,20 +14,14 @@ require (
 	github.com/coder-lulu/newbee-core v1.0.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/suyuan32/simple-admin-common v1.7.7
+	github.com/xeipuuv/gojsonschema v1.2.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.11
 ) // indirect
 
 require (
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/spf13/cobra v1.7.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
-	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 )
 
 require (
@@ -39,7 +33,6 @@ require (
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/coder-lulu/newbee/newbee-proxy v0.0.0
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -153,4 +146,4 @@ require (
 
 replace github.com/coder-lulu/newbee-common/v2 => ../../common
 
-replace github.com/coder-lulu/newbee/newbee-proxy => ../../newbee-proxy
+replace github.com/coder-lulu/newbee-proxy => ../../newbee-proxy

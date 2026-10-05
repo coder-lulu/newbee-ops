@@ -15,10 +15,7 @@ require (
 	github.com/coder-lulu/newbee-core v1.0.1
 	github.com/coder-lulu/newbee-ops-rpc v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.23.2
-	github.com/suyuan32/simple-admin-common v1.7.7
 )
-
-require github.com/stretchr/objx v0.5.3 // indirect
 
 require (
 	ariga.io/atlas v0.38.0 // indirect
