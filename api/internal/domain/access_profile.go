@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	plogic "github.com/coder-lulu/newbee-ops-api/internal/logic/proxy"
 	"github.com/coder-lulu/newbee-ops-api/internal/svc"
 	"github.com/coder-lulu/newbee-ops-api/internal/types"
 	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
@@ -202,6 +201,3 @@ func PickProxy(svcCtx *svc.ServiceContext, preferred string) (endpoint string, p
 	}
 	return
 }
-
-// to avoid unused imports on proxy logic while ensuring type linking
-var _ = plogic.ProxyInfo{}

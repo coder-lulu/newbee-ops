@@ -175,17 +175,17 @@ type CloseSessionResp struct {
 }
 
 type SessionItem struct {
-	Id        string
-	TenantId  string
-	UserId    string
-	CiId      string
-	Protocol  string
-	ProxyId   string
-	Endpoint  string
-	CreatedAt int64
-	ExpiresAt int64
-	Status    string
-	ClosedAt  int64
+	Id        string `json:"id"`
+	TenantId  string `json:"tenantId"`
+	UserId    string `json:"userId"`
+	CiId      string `json:"ciId"`
+	Protocol  string `json:"protocol"`
+	ProxyId   string `json:"proxyId"`
+	Endpoint  string `json:"endpoint"`
+	CreatedAt int64  `json:"createdAt"`
+	ExpiresAt int64  `json:"expiresAt"`
+	Status    string `json:"status"`
+	ClosedAt  int64  `json:"closedAt"`
 }
 
 // swagger:model SessionItemResp
@@ -196,8 +196,8 @@ type SessionItemResp struct {
 }
 
 type SessionListData struct {
-	Items []SessionItem
-	Total int
+	Items []SessionItem `json:"items"`
+	Total int           `json:"total"`
 }
 
 // swagger:model SessionListResp
@@ -224,17 +224,17 @@ type GetSessionQueryReq struct {
 
 // swagger:model ListSessionReq
 type ListSessionReq struct {
-	Status   string
-	CiId     string
-	Page     int
-	Size     int
-	Protocol string
-	ProxyId  string
-	UserId   string
-	Begin    int    // created_at >= Begin (unix seconds)
-	End      int    // created_at <= End (unix seconds)
-	SortBy   string // created_at|closed_at
-	Order    string // asc|desc
+	Status   string `form:"status,optional"`
+	CiId     string `form:"ciId,optional"`
+	Page     int    `form:"page,default=1"`
+	Size     int    `form:"size,default=20"`
+	Protocol string `form:"protocol,optional"`
+	ProxyId  string `form:"proxyId,optional"`
+	UserId   string `form:"userId,optional"`
+	Begin    int    `form:"begin,optional"`  // created_at >= Begin (unix seconds)
+	End      int    `form:"end,optional"`    // created_at <= End (unix seconds)
+	SortBy   string `form:"sortBy,optional"` // created_at|closed_at
+	Order    string `form:"order,optional"`  // asc|desc
 }
 
 type SessionOptions struct {
@@ -287,13 +287,13 @@ type PickProxyResp struct {
 }
 
 type AccessProfile struct {
-	CiId          string
-	Capabilities  []string
-	Ports         map[string]int
-	CredentialRef string
-	PreferProxy   string
-	JumpChain     []string
-	Tags          map[string]string
+	CiId          string            `json:"ciId"`
+	Capabilities  []string          `json:"capabilities"`
+	Ports         map[string]int    `json:"ports"`
+	CredentialRef string            `json:"credentialRef"`
+	PreferProxy   string            `json:"preferProxy"`
+	JumpChain     []string          `json:"jumpChain"`
+	Tags          map[string]string `json:"tags"`
 }
 
 // swagger:model AccessProfileResp
@@ -304,13 +304,17 @@ type AccessProfileResp struct {
 }
 
 // swagger:model AccessProfileReq
+type AccessProfileQueryReq struct {
+	CiId string `form:"ciId"`
+}
+
 type AccessProfileReq struct {
 	AccessProfile AccessProfile
 }
 
 type AccessProfileListData struct {
-	Items []AccessProfile
-	Total int
+	Items []AccessProfile `json:"items"`
+	Total int             `json:"total"`
 }
 
 // swagger:model AccessProfileListResp

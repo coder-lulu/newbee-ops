@@ -35,17 +35,17 @@ type (
 		Data CloseSessionData `json:"data"`
 	}
 	SessionItem {
-		Id        string
-		TenantId  string
-		UserId    string
-		CiId      string
-		Protocol  string
-		ProxyId   string
-		Endpoint  string
-		CreatedAt int64
-		ExpiresAt int64
-		Status    string
-		ClosedAt  int64
+		Id        string `json:"id"`
+		TenantId  string `json:"tenantId"`
+		UserId    string `json:"userId"`
+		CiId      string `json:"ciId"`
+		Protocol  string `json:"protocol"`
+		ProxyId   string `json:"proxyId"`
+		Endpoint  string `json:"endpoint"`
+		CreatedAt int64 `json:"createdAt"`
+		ExpiresAt int64 `json:"expiresAt"`
+		Status    string `json:"status"`
+		ClosedAt  int64 `json:"closedAt"`
 	}
 	SessionItemResp {
 		Code int         `json:"code"`
@@ -53,8 +53,8 @@ type (
 		Data SessionItem `json:"data"`
 	}
 	SessionListData {
-		Items []SessionItem
-		Total int
+		Items []SessionItem `json:"items"`
+		Total int `json:"total"`
 	}
 	SessionListResp {
 		Code int             `json:"code"`
@@ -74,17 +74,17 @@ type (
 		UserId   string
 	}
 	ListSessionReq {
-		Status   string
-		CiId     string
-		Page     int
-		Size     int
-		Protocol string
-		ProxyId  string
-		UserId   string
-		Begin    int    // created_at >= Begin (unix seconds)
-		End      int    // created_at <= End (unix seconds)
-		SortBy   string // created_at|closed_at
-		Order    string // asc|desc
+		Status string `form:"status,optional"`
+		CiId string `form:"ciId,optional"`
+		Page int `form:"page,default=1"`
+		Size int `form:"size,default=20"`
+		Protocol string `form:"protocol,optional"`
+		ProxyId string `form:"proxyId,optional"`
+		UserId string `form:"userId,optional"`
+		Begin int `form:"begin,optional"`    // created_at >= Begin (unix seconds)
+		End int `form:"end,optional"`    // created_at <= End (unix seconds)
+		SortBy string `form:"sortBy,optional"` // created_at|closed_at
+		Order string `form:"order,optional"` // asc|desc
 	}
 
 	SessionOptions {
@@ -127,25 +127,28 @@ type (
 		Data PickProxyData `json:"data"`
 	}
 	AccessProfile {
-		CiId          string
-		Capabilities  []string
-		Ports         map[string]int
-		CredentialRef string
-		PreferProxy   string
-		JumpChain     []string
-		Tags          map[string]string
+		CiId          string `json:"ciId"`
+		Capabilities  []string `json:"capabilities"`
+		Ports         map[string]int `json:"ports"`
+		CredentialRef string `json:"credentialRef"`
+		PreferProxy   string `json:"preferProxy"`
+		JumpChain     []string `json:"jumpChain"`
+		Tags          map[string]string `json:"tags"`
 	}
 	AccessProfileResp {
 		Code int           `json:"code"`
 		Msg  string        `json:"msg"`
 		Data AccessProfile `json:"data"`
 	}
+	AccessProfileQueryReq {
+		CiId string `form:"ciId"`
+	}
 	AccessProfileReq {
 		AccessProfile AccessProfile
 	}
 	AccessProfileListData {
-		Items []AccessProfile
-		Total int
+		Items []AccessProfile `json:"items"`
+		Total int `json:"total"`
 	}
 	AccessProfileListResp {
 		Code int                   `json:"code"`
@@ -243,7 +246,7 @@ service ops-api {
 	post /ops/profile/update (AccessProfileReq) returns (BaseMsgResp)
 
 	@handler GetProfile
-	get /ops/profile/get returns (AccessProfileResp)
+	get /ops/profile/get (AccessProfileQueryReq) returns (AccessProfileResp)
 
 	@handler ListProfile
 	get /ops/profile/list returns (AccessProfileListResp)

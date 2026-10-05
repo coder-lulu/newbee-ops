@@ -12,18 +12,18 @@ import (
 // 获取Proxy详情（需要JWT）
 func GetProxyByIdHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req types.IDReq
+		var req types.IDPathReq
 		if err := httpx.Parse(r, &req, true); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 
 		l := proxy.NewGetProxyByIdLogic(r.Context(), svcCtx)
-		resp, err := l.GetProxyById(&req)
+		resp, err := l.GetProxyById(&types.IDReq{Id: req.Id})
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
-			httpx.OkJsonCtx(r.Context(), w, resp)
+			httpx.OkJsonCtx(r.Context(), w, map[string]any{"code": 0, "msg": "success", "data": resp})
 		}
 	}
 }

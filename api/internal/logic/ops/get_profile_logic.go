@@ -2,6 +2,8 @@ package ops
 
 import (
 	"context"
+	"fmt"
+	"github.com/coder-lulu/newbee-ops-api/internal/logic/profile"
 
 	"github.com/coder-lulu/newbee-ops-api/internal/svc"
 	"github.com/coder-lulu/newbee-ops-api/internal/types"
@@ -23,8 +25,16 @@ func NewGetProfileLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetPro
 	}
 }
 
-func (l *GetProfileLogic) GetProfile() (resp *types.AccessProfile, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+func (l *GetProfileLogic) GetProfile(req *types.AccessProfileQueryReq) (resp *types.AccessProfileResp, err error) {
+	if req.CiId == "" {
+		return nil, fmt.Errorf("ciId is required")
+	}
+	item, found, err := profile.NewLogic(l.ctx, l.svcCtx).Get(req.CiId)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("access profile not found")
+	}
+	return &types.AccessProfileResp{Msg: "success", Data: item}, nil
 }

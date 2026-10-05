@@ -25,7 +25,16 @@ func NewGetProxyMetricsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *G
 }
 
 func (l *GetProxyMetricsLogic) GetProxyMetrics(req *types.ProxyMetricsReq) (resp *types.ProxyMetricsResp, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	items, err := readMetrics(l.ctx, l.svcCtx.OpsClient, req.ProxyID, req.StartTime, req.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	return &types.ProxyMetricsResp{Msg: "success", Data: items}, nil
 }

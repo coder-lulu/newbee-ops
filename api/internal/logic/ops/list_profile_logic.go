@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"github.com/coder-lulu/newbee-ops-api/internal/logic/profile"
 
 	"github.com/coder-lulu/newbee-ops-api/internal/svc"
 	"github.com/coder-lulu/newbee-ops-api/internal/types"
@@ -24,7 +25,9 @@ func NewListProfileLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ListP
 }
 
 func (l *ListProfileLogic) ListProfile() (resp *types.AccessProfileListResp, err error) {
-	// todo: add your logic here and delete this line
-
-	return
+	items, total, err := profile.NewLogic(l.ctx, l.svcCtx).List()
+	if err != nil {
+		return nil, err
+	}
+	return &types.AccessProfileListResp{Msg: "success", Data: types.AccessProfileListData{Items: items, Total: total}}, nil
 }

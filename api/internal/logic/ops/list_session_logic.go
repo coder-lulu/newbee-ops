@@ -79,7 +79,7 @@ func (l *ListSessionLogic) ListSession(req *types.ListSessionReq) (resp *types.S
 	items := make([]types.SessionItem, 0, len(listResp.Data))
 	for _, session := range listResp.Data {
 		items = append(items, types.SessionItem{
-			Id:        fmt.Sprintf("session_%d", *session.Id),
+			Id:        session.GetSessionId(),
 			TenantId:  "", // TenantId is managed by middleware, not exposed in protobuf
 			UserId:    safeString(session.UserId),
 			CiId:      safeString(session.CiId),
@@ -110,5 +110,3 @@ func (l *ListSessionLogic) ListSession(req *types.ListSessionReq) (resp *types.S
 }
 
 // 辅助函数
-
-
