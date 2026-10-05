@@ -96,6 +96,7 @@ Ops:
     - "http://127.0.0.1:8889"
   SessionTokenTTL: 1800
   Registration:
+    TenantID: 0 # 必须显式设置此 PSK 授权的已有租户 ID；0 禁止注册和心跳
     PSK: "dev-psk"
 
 OpsRpc:

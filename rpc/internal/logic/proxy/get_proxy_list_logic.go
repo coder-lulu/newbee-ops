@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/coder-lulu/newbee-ops-rpc/ent/proxy"
 	"github.com/coder-lulu/newbee-ops-rpc/ent/predicate"
+	"github.com/coder-lulu/newbee-ops-rpc/ent/proxy"
 	"github.com/coder-lulu/newbee-ops-rpc/internal/svc"
 	"github.com/coder-lulu/newbee-ops-rpc/internal/utils/dberrorhandler"
 	"github.com/coder-lulu/newbee-ops-rpc/types/ops"
 
 	"github.com/suyuan32/simple-admin-common/utils/pointy"
-    "github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type GetProxyListLogic struct {
@@ -144,43 +144,43 @@ func (l *GetProxyListLogic) GetProxyList(in *ops.ProxyListReq) (*ops.ProxyListRe
 
 	for _, v := range result.List {
 		resp.Data = append(resp.Data, &ops.ProxyInfo{
-			Id:          &v.ID,
-			CreatedAt:   pointy.GetPointer(v.CreatedAt.UnixMilli()),
-			UpdatedAt:   pointy.GetPointer(v.UpdatedAt.UnixMilli()),
-			Status:	pointy.GetPointer(uint32(v.Status)),
-			ProxyId:	&v.WorkerID,
-			Name:	&v.Name,
-			Ip:	&v.IP,
-			Port:	pointy.GetPointer(int64(v.Port)),
-			Version:	&v.Version,
-			Region:	&v.Region,
-			Zone:	&v.Zone,
-			Capabilities: pointy.GetPointer(mustMarshalJSON(v.Capabilities)),
-			Tags: pointy.GetPointer(mustMarshalJSON(v.Tags)),
-			Endpoints: pointy.GetPointer(mustMarshalJSON(v.Endpoints)),
-			ProxyStatus: pointy.GetPointer(proxyStatusToString(v.WorkerStatus)),
-			LastHeartbeat:	pointy.GetUnixMilliPointer(v.LastHeartbeat.UnixMilli()),
-			RegisterTime:	pointy.GetUnixMilliPointer(v.RegisterTime.UnixMilli()),
-			Weight:	pointy.GetPointer(int64(v.Weight)),
-			Priority:	pointy.GetPointer(int64(v.Priority)),
-			CpuUsage:	&v.CPUUsage,
-			MemoryUsage:	&v.MemoryUsage,
-			DiskUsage:	&v.DiskUsage,
-			NetworkIn:	&v.NetworkIn,
-			NetworkOut:	&v.NetworkOut,
-			ActiveSessions:	pointy.GetPointer(int64(v.ActiveSessions)),
-			TotalRequests:	&v.TotalRequests,
-			SuccessCount:	&v.SuccessCount,
-			FailureCount:	&v.FailureCount,
-			MaxSessions:	pointy.GetPointer(int64(v.MaxSessions)),
-			HealthCheckFailures:	pointy.GetPointer(int64(v.HealthCheckFailures)),
-			LastHealthCheck:	pointy.GetUnixMilliPointer(v.LastHealthCheck.UnixMilli()),
-			HealthCheckUrl:	&v.HealthCheckURL,
-			LocalIp:	&v.LocalIP,
-			PublicIp:	&v.PublicIP,
-			NetworkSegments: pointy.GetPointer(mustMarshalJSON(v.NetworkSegments)),
-			Metadata: pointy.GetPointer(mustMarshalJSON(v.Metadata)),
-			LastError:	&v.LastError,
+			Id:                  &v.ID,
+			CreatedAt:           pointy.GetPointer(v.CreatedAt.UnixMilli()),
+			UpdatedAt:           pointy.GetPointer(v.UpdatedAt.UnixMilli()),
+			Status:              pointy.GetPointer(uint32(v.Status)),
+			ProxyId:             &v.WorkerID,
+			Name:                &v.Name,
+			Ip:                  &v.IP,
+			Port:                pointy.GetPointer(int64(v.Port)),
+			Version:             &v.Version,
+			Region:              &v.Region,
+			Zone:                &v.Zone,
+			Capabilities:        pointy.GetPointer(mustMarshalJSON(v.Capabilities)),
+			Tags:                pointy.GetPointer(mustMarshalJSON(v.Tags)),
+			Endpoints:           pointy.GetPointer(mustMarshalJSON(v.Endpoints)),
+			ProxyStatus:         pointy.GetPointer(proxyStatusToString(v.WorkerStatus)),
+			LastHeartbeat:       optionalUnixMilli(v.LastHeartbeat),
+			RegisterTime:        optionalUnixMilli(v.RegisterTime),
+			Weight:              pointy.GetPointer(int64(v.Weight)),
+			Priority:            pointy.GetPointer(int64(v.Priority)),
+			CpuUsage:            &v.CPUUsage,
+			MemoryUsage:         &v.MemoryUsage,
+			DiskUsage:           &v.DiskUsage,
+			NetworkIn:           &v.NetworkIn,
+			NetworkOut:          &v.NetworkOut,
+			ActiveSessions:      pointy.GetPointer(int64(v.ActiveSessions)),
+			TotalRequests:       &v.TotalRequests,
+			SuccessCount:        &v.SuccessCount,
+			FailureCount:        &v.FailureCount,
+			MaxSessions:         pointy.GetPointer(int64(v.MaxSessions)),
+			HealthCheckFailures: pointy.GetPointer(int64(v.HealthCheckFailures)),
+			LastHealthCheck:     optionalUnixMilli(v.LastHealthCheck),
+			HealthCheckUrl:      &v.HealthCheckURL,
+			LocalIp:             &v.LocalIP,
+			PublicIp:            &v.PublicIP,
+			NetworkSegments:     pointy.GetPointer(mustMarshalJSON(v.NetworkSegments)),
+			Metadata:            pointy.GetPointer(mustMarshalJSON(v.Metadata)),
+			LastError:           &v.LastError,
 		})
 	}
 

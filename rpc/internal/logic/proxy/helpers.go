@@ -2,6 +2,9 @@ package proxy
 
 import (
 	"encoding/json"
+	"time"
+
+	"github.com/suyuan32/simple-admin-common/utils/pointy"
 
 	"github.com/coder-lulu/newbee-ops-rpc/ent/proxy"
 )
@@ -72,4 +75,12 @@ func stringToProxyStatus(s *string) proxy.WorkerStatus {
 // proxyStatusToString converts proxy.WorkerStatus enum to string
 func proxyStatusToString(status proxy.WorkerStatus) string {
 	return string(status)
+}
+
+// optionalUnixMilli preserves absent and zero timestamps in protobuf responses.
+func optionalUnixMilli(value *time.Time) *int64 {
+	if value == nil {
+		return nil
+	}
+	return pointy.GetUnixMilliPointer(value.UnixMilli())
 }

@@ -29,13 +29,11 @@ func NewProxyHeartbeatLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Pr
 }
 
 func (l *ProxyHeartbeatLogic) ProxyHeartbeat(req *types.ProxyHeartbeatReq) (resp *types.BaseResp, err error) {
-	// 1. 验证 PSK
-	if req.PSK != l.svcCtx.Config.Ops.Registration.PSK {
-		return &types.BaseResp{
-			Code: 401,
-			Msg:  "Invalid PSK",
-		}, nil
+	ctx, rejection := registrationContext(l.ctx, l.svcCtx, req.PSK)
+	if rejection != nil {
+		return rejection, nil
 	}
+	l.ctx = ctx
 
 	// 2. 查找 Proxy
 	proxy, err := l.svcCtx.OpsClient.GetProxyByProxyId(l.ctx, req.ProxyID)
@@ -47,7 +45,7 @@ func (l *ProxyHeartbeatLogic) ProxyHeartbeat(req *types.ProxyHeartbeatReq) (resp
 	}
 
 	// 3. 更新心跳和指标
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	proxyInfo := &ops.ProxyInfo{
 		Id:             proxy.Id,
 		ProxyStatus:    &req.ProxyStatus,
@@ -75,7 +73,7 @@ func (l *ProxyHeartbeatLogic) ProxyHeartbeat(req *types.ProxyHeartbeatReq) (resp
 	}
 
 	// 4. 异步保存指标到历史表（可选）
-	go l.saveMetrics(req, now)
+	go l.saveMetrics(context.WithoutCancel(l.ctx), req, now)
 
 	l.Logger.Debugw("Proxy heartbeat received",
 		logx.Field("proxy_id", req.ProxyID),
@@ -89,9 +87,8 @@ func (l *ProxyHeartbeatLogic) ProxyHeartbeat(req *types.ProxyHeartbeatReq) (resp
 }
 
 // saveMetrics 保存指标到历史表（异步）
-func (l *ProxyHeartbeatLogic) saveMetrics(req *types.ProxyHeartbeatReq, timestamp int64) {
-	// 注意：这里使用新的 context，因为是异步操作
-	ctx := context.Background()
+func (l *ProxyHeartbeatLogic) saveMetrics(ctx context.Context, req *types.ProxyHeartbeatReq, timestamp int64) {
+	// 保留经过 PSK 验证的租户上下文，异步任务不受 HTTP 请求取消影响。
 
 	metricsInfo := &ops.ProxyMetricsInfo{
 		ProxyId:         &req.ProxyID,

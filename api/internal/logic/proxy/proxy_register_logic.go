@@ -30,19 +30,17 @@ func NewProxyRegisterLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Pro
 }
 
 func (l *ProxyRegisterLogic) ProxyRegister(req *types.ProxyRegisterReq) (resp *types.BaseResp, err error) {
-	// 1. 验证 PSK
-	if req.PSK != l.svcCtx.Config.Ops.Registration.PSK {
-		return &types.BaseResp{
-			Code: 401,
-			Msg:  "Invalid PSK",
-		}, nil
+	ctx, rejection := registrationContext(l.ctx, l.svcCtx, req.PSK)
+	if rejection != nil {
+		return rejection, nil
 	}
+	l.ctx = ctx
 
 	// 2. 检查是否已存在（通过 proxy_id）
 	existing, _ := l.svcCtx.OpsClient.GetProxyByProxyId(l.ctx, req.ProxyID)
 
 	// 3. 准备数据
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	endpoints := req.Endpoints
 	if endpoints == nil {
 		endpoints = make(map[string]string)
